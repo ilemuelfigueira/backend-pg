@@ -4,8 +4,36 @@ import { supabaseCreateClient } from "./lib/supabase.js";
 
 const app = fastify();
 
+app.setErrorHandler((error, request, reply) => {
+  if (error instanceof fastify.errorCodes.FST_ERR_BAD_STATUS_CODE) {
+    reply.code(500).send({ message: "Internal Server Error" });
+  } else {
+    reply.send(error);
+  }
+});
+
 app.get("/health", async (request, reply) => {
   return { status: "ok" };
+});
+
+app.post("/auth", async (request, reply) => {
+  const { email, password } = request.body;
+
+  const supabase = await supabaseCreateClient();
+
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error || !session) {
+    reply.code(401).send({ message: "Unauthorized" });
+  }
+
+  reply.status(200).send(session);
 });
 
 app.get("/carrinho", async (request, reply) => {
@@ -14,7 +42,11 @@ app.get("/carrinho", async (request, reply) => {
   const accessToken = headers.access_token;
   const refreshToken = headers.refresh_token;
 
-  const supabase = await supabaseCreateClient(accessToken, refreshToken);
+  const supabase = await supabaseCreateClient(
+    accessToken,
+    refreshToken,
+    (error) => reply.status(401).send({ message: error })
+  );
 
   const {
     data: { session },
