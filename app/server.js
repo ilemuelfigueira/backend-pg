@@ -80,3 +80,5 @@ app
   .then(() => {
     console.info("SERVER RUNNING", process.env.PORT);
   });
+
+export default app
