@@ -12,6 +12,10 @@ app.setErrorHandler((error, request, reply) => {
   }
 });
 
+app.get("/", async(request, reply) => {
+  return { message: "Bem vindo a api da pgcustomstore" };
+})
+
 app.get("/health", async (request, reply) => {
   return { status: "ok" };
 });
