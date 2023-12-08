@@ -2,9 +2,10 @@
   "name": "backend-pg",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "app/server.js",
   "type": "module",
   "scripts": {
+    "start:serverless": "node ./api/serverless.js",
     "start": "node ./app/server.js",
     "dev": "nodemon ./app/server.js"
   },
