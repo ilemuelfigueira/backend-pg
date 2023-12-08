@@ -13,7 +13,12 @@ const app = Fastify({
 });
 
 // Register your application as a normal plugin.
-app.register(import("../app/routes.js"));
+app.register(import("../app/routes/base.js"), {
+  prefix: "/api"
+});
+// app.register(import("../app/routes/auth.js"));
+// app.register(import("../app/routes/carrinho.js"));
+
 
 export default async (req, res) => {
     await app.ready();

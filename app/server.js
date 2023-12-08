@@ -1,10 +1,12 @@
 import fastify from "fastify";
-import { client } from "./lib/prisma.js";
-import { supabaseCreateClient } from "./lib/supabase.js";
 
-const app = fastify();
+const app = fastify({
+  logger: true,
+});;
 
-app.register(import("./routes.js"));
+app.register(import("./routes/base.js"), {
+  prefix: "/api",
+});
 
 app
   .listen({
