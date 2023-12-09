@@ -1,7 +1,7 @@
 import { supabaseCreateClient } from "../lib/supabase.js";
 
 /**
- *
+ * 
  * @param {import("fastify").FastifyInstance} fastify
  * @param {import("fastify").FastifyServerOptions} options
  */

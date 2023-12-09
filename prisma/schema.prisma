@@ -348,6 +348,7 @@ model produto {
   dtatualizado                                     DateTime?       @db.Timestamp(6)
   dtcriado                                         DateTime        @default(now()) @db.Timestamp(6)
   dtremovido                                       DateTime?       @db.Timestamp(6)
+  estoque                                          estoque[]
   pacote_item                                      pacote_item[]
   produto_tipo_produto_nmprodutotipoToproduto_tipo produto_tipo?   @relation("produto_nmprodutotipoToproduto_tipo", fields: [nmprodutotipo], references: [nmprodutotipo], onDelete: NoAction, onUpdate: NoAction, map: "fk_nmprodutotipo")
   produto_tipo                                     produto_tipo    @relation(fields: [cdprodutotipo], references: [cdprodutotipo], onDelete: NoAction, onUpdate: NoAction)
@@ -533,6 +534,17 @@ model pacote_foto {
   nmmimetype   String? @db.VarChar(100)
   nmaspect     String? @db.VarChar(5)
   pacote       pacote  @relation(fields: [cdpacote], references: [cdpacote], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model estoque {
+  cdestoque    String    @id(map: "estoqueproduto_pkey") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cdproduto    String    @db.Uuid
+  nuestoque    Int       @default(0)
+  dtcriado     DateTime  @default(now()) @db.Timestamp(6)
+  dtatualizado DateTime? @db.Timestamp(6)
+  produto      produto   @relation(fields: [cdproduto], references: [cdproduto], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }
