@@ -1,7 +1,7 @@
 "use strict";
 
 // Read the .env file.
-import * as dotenv from "dotenv";
+import dotenv from "dotenv";
 dotenv.config();
 
 // Require the framework
