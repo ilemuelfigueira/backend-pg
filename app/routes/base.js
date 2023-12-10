@@ -1,5 +1,6 @@
-import client from "../lib/prisma.js";
 import { supabaseCreateClient } from "../lib/supabase.js";
+
+import _fastify from "fastify";
 
 /**
  *
@@ -8,7 +9,7 @@ import { supabaseCreateClient } from "../lib/supabase.js";
  */
 async function baseRoutes(fastify, options) {
   fastify.setErrorHandler((error, request, reply) => {
-    if (error instanceof fastify.errorCodes.FST_ERR_BAD_STATUS_CODE) {
+    if (error instanceof _fastify.errorCodes.FST_ERR_BAD_STATUS_CODE) {
       reply.code(500).send({ message: "Internal Server Error" });
     } else {
       reply.send(error);
