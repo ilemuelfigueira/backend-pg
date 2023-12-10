@@ -6,23 +6,27 @@ import client from "../lib/prisma.js";
  * @param {import("fastify").FastifyServerOptions} options
  */
 export default async function (fastify, options) {
-  fastify.get("/existe-cpf", async (request, reply) => {
+  fastify.get("/existe", async (request, reply) => {
     const { cpf } = request.query;
 
-    const usuario = await client.users.findUnique({
-      where: {
-        raw_user_meta_data: {
-          path: ["cpf"],
-          equals: cpf,
+    try {
+      const usuario = await client.users.findFirst({
+        where: {
+          raw_user_meta_data: {
+            path: ["cpf"],
+            equals: cpf,
+          },
         },
-      },
-    });
+      });
 
-    if (usuario) {
-      reply.status(500).send({ message: "Usuário já existe" });
+      if (usuario) {
+        return reply.status(200).send({ flExiste: "S" });
+      }
+
+      return reply.status(200).send({ flExiste: "N" });
+    } catch (error) {
+      return reply.status(500).send({ message: error.message });
     }
-
-    reply.status(200).send({ message: "Usuário não existe" });
   });
 
   fastify.get(

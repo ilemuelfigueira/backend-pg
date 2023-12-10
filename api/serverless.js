@@ -16,9 +16,6 @@ const app = Fastify({
 app.register(import("../app/routes/base.js"), {
   prefix: "/api"
 });
-// app.register(import("../app/routes/auth.js"));
-// app.register(import("../app/routes/carrinho.js"));
-
 
 export default async (req, res) => {
     await app.ready();
