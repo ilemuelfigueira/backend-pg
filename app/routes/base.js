@@ -69,6 +69,10 @@ async function baseRoutes(fastify, options) {
   await fastify.register(import("./usuarios.js"), {
     prefix: "/usuarios",
   });
+
+  await fastify.register(import("./carrinhos.js"), {
+    prefix: "/carrinhos",
+  });
 }
 
 export default baseRoutes;
