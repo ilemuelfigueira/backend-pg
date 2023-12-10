@@ -77,6 +77,10 @@ async function baseRoutes(fastify, options) {
   await fastify.register(import("./enderecos.js"), {
     prefix: "/enderecos",
   });
+
+  await fastify.register(import("./pacotes.js"), {
+    prefix: "/pacotes",
+  });
 }
 
 export default baseRoutes;
