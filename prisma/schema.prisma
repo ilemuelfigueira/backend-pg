@@ -383,6 +383,7 @@ model produto_preco {
   dtatualizado   DateTime? @db.Timestamp(6)
   dtcriado       DateTime  @default(now()) @db.Timestamp(6)
   dtremovido     DateTime? @db.Timestamp(6)
+  flativo        String    @default("S") @db.Char(1)
   produto        produto?  @relation(fields: [cdproduto], references: [cdproduto], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
@@ -452,6 +453,7 @@ model sub_produto_preco {
   dtatualizado      DateTime?   @db.Timestamp(6)
   dtcriado          DateTime    @default(now()) @db.Timestamp(6)
   dtremovido        DateTime?   @db.Timestamp(6)
+  flativo           String      @default("S") @db.Char(1)
   sub_produto       sub_produto @relation(fields: [cdsubproduto], references: [cdsubproduto], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")

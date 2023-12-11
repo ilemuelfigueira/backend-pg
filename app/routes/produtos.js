@@ -7,7 +7,7 @@ import client from "../lib/prisma.js";
  */
 async function produtosRoutes(fastify, options) {
   fastify.get("/", async (request, reply) => {
-    const query = request.query;
+    const query = new Map(Object.entries(request.query));
 
     const page = Number(query.page);
     const take = Number(query.size) || 10;
@@ -43,44 +43,19 @@ async function produtosRoutes(fastify, options) {
         estoque: true,
       },
       where: {
+        produto_preco: {
+          every: {
+            flativo: "S",
+          },
+        },
         nmproduto: {
-          contains: query.nmproduto,
+          contains: query.get("nmproduto"),
           mode: "insensitive",
         },
         nmprodutotipo: {
-          contains: query.nmprodutotipo,
+          contains: query.get("nmprodutotipo"),
           mode: "insensitive",
         },
-        AND: [
-          {
-            nmprodutotipo: {
-              not: {
-                contains: "CONTROLE_EXCLUSIVO",
-              },
-            },
-          },
-          {
-            estoque: {
-              every: {
-                nuestoque: {
-                  gt: 0,
-                },
-              },
-            },
-          },
-          {
-            produto_preco: {
-              every: {
-                dtinicio: {
-                  lt: new Date(),
-                },
-                dtfim: {
-                  gt: new Date(),
-                },
-              },
-            },
-          },
-        ],
       },
       skip: skip || 0,
       take: take || 10,
@@ -90,7 +65,13 @@ async function produtosRoutes(fastify, options) {
   });
 
   fastify.get("/:cdproduto", async (request, reply) => {
-    const cdproduto = request.params.cdproduto;
+    const paramsMap = new Map(Object.entries(request.params));
+
+    if (!paramsMap.has("cdproduto")) {
+      reply.status(400).send({ message: "Bad Request" });
+    }
+
+    const cdproduto = paramsMap.get("cdproduto");
 
     const produto = await client.produto.findUnique({
       include: {
@@ -98,11 +79,59 @@ async function produtosRoutes(fastify, options) {
         produto_preco: true,
       },
       where: {
-        cdproduto: Number(cdproduto),
+        produto_preco: {
+          every: {
+            flativo: "S",
+          },
+        },
+        cdproduto: cdproduto,
       },
     });
 
     reply.send(produto);
+  });
+
+  fastify.get("/:cdproduto/fotos", async (request, reply) => {
+    const paramsMap = new Map(Object.entries(request.params));
+
+    if (!paramsMap.has("cdproduto")) {
+      reply.status(400).send({ message: "Bad Request" });
+    }
+
+    const cdproduto = paramsMap.get("cdproduto");
+
+    let produtoFotos = await client.produto_foto.findMany({
+      where: {
+        cdproduto: cdproduto,
+      },
+    });
+
+    produtoFotos = produtoFotos.map((produtoFoto) =>
+      Object.assign(produtoFoto, {
+        nmpath: `${process.env.NEXT_PUBLIC_STORAGE_PUBLIC}${produtoFoto.nmpath}`,
+      })
+    );
+
+    reply.send(produtoFotos);
+  });
+
+  fastify.get("/:cdproduto/precos", async (request, reply) => {
+    const paramsMap = new Map(Object.entries(request.params));
+
+    if (!paramsMap.has("cdproduto")) {
+      reply.status(400).send({ message: "Bad Request" });
+    }
+
+    const cdproduto = paramsMap.get("cdproduto");
+
+    let produtoPreco = await client.produto_preco.findFirst({
+      where: {
+        cdproduto: cdproduto,
+        flativo: "S",
+      },
+    });
+
+    reply.send(produtoPreco);
   });
 
   fastify.get("/tipos", async (request, reply) => {
@@ -153,6 +182,80 @@ async function produtosRoutes(fastify, options) {
       reply.send(produto);
     }
   );
+
+  fastify.get("/:cdproduto/sub-produtos", async (request, reply) => {
+    const paramsMap = new Map(Object.entries(request.params));
+
+    if (!paramsMap.has("cdproduto")) {
+      reply.status(400).send({ message: "Bad Request" });
+    }
+
+    const cdproduto = paramsMap.get("cdproduto");
+
+    const subProdutos = await client.sub_produto.findMany({
+      include: {
+        sub_produto_foto: true,
+        sub_produto_preco: true,
+      },
+      where: {
+        cdproduto: cdproduto,
+        sub_produto_preco: {
+          every: {
+            flativo: "S",
+          },
+        },
+      },
+    });
+
+    reply.send(subProdutos);
+  });
+
+  fastify.get("/:cdproduto/sub-produtos/fotos", async (request, reply) => {
+    const paramsMap = new Map(Object.entries(request.params));
+
+    if (!paramsMap.has("cdproduto")) {
+      reply.status(400).send({ message: "Bad Request" });
+    }
+
+    const cdproduto = paramsMap.get("cdproduto");
+
+    let subProdutosFotos = await client.sub_produto_foto.findMany({
+      where: {
+        sub_produto: {
+          cdproduto: cdproduto,
+        },
+      },
+    });
+
+    subProdutosFotos = subProdutosFotos.map((subprodutoFoto) =>
+      Object.assign(subprodutoFoto, {
+        nmpath: `${process.env.NEXT_PUBLIC_STORAGE_PUBLIC}${subprodutoFoto.nmpath}`,
+      })
+    );
+
+    reply.send(subProdutosFotos);
+  });
+
+  fastify.get("/:cdproduto/sub-produtos/precos", async (request, reply) => {
+    const paramsMap = new Map(Object.entries(request.params));
+
+    if (!paramsMap.has("cdproduto")) {
+      reply.status(400).send({ message: "Bad Request" });
+    }
+
+    const cdproduto = paramsMap.get("cdproduto");
+
+    const subProdutos = await client.sub_produto_preco.findMany({
+      where: {
+        sub_produto: {
+          cdproduto: cdproduto,
+        },
+        flativo: "S",
+      },
+    });
+
+    reply.send(subProdutos);
+  });
 }
 
 export default produtosRoutes;
