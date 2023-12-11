@@ -38,10 +38,14 @@ export default async function (fastify, options) {
       onRequest: [fastify.authenticate],
     },
     async (request, reply) => {
-      const { cdcarrinho } = request.params;
+      const paramsMap = new Map(Object.entries(request.params));
       const { session } = request.headers;
 
-      if (!session) reply.status(401).send({ message: "Unauthorized" });
+      if (!session) return reply.status(401).send({ message: "Unauthorized" });
+      if (!paramsMap.has("cdcarrinho"))
+        return reply.status(400).send({ message: "Bad Request" });
+
+      const cdcarrinho = paramsMap.get("cdcarrinho");
 
       const carrinho = await client.carrinho.findFirstOrThrow({
         where: {
@@ -67,7 +71,7 @@ export default async function (fastify, options) {
           CONCAT(pr.nmprodutotipo, ' - ', pr.nmproduto) as concat_nmproduto,
           string_agg(CONCAT(spt.nmsubprodutotipo, ' - ', sp.nmsubproduto), ', ') as concat_nmsubprodutotipo,
           string_agg(sp.nmsubproduto, ', ') as concat_nmsubproduto,
-          CONCAT(${process.env.STORAGE_PRODUTOS}, COALESCE(pf2.nmpath, pf.nmpath)) as nmpath,
+          CONCAT(${process.env.STORAGE_PUBLIC}, COALESCE(pf2.nmpath, pf.nmpath)) as nmpath,
           (SUM(COALESCE(spp.vlsubproduto, 0)) + COALESCE(pp.vlproduto, 0)) * cp.nuqtdpacote as vlpacote
         from carrinho_pacote cp
         inner join pacote p 

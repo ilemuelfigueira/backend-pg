@@ -108,7 +108,7 @@ async function produtosRoutes(fastify, options) {
 
     produtoFotos = produtoFotos.map((produtoFoto) =>
       Object.assign(produtoFoto, {
-        nmpath: `${process.env.NEXT_PUBLIC_STORAGE_PUBLIC}${produtoFoto.nmpath}`,
+        nmpath: `${process.env.STORAGE_PUBLIC}${produtoFoto.nmpath}`,
       })
     );
 
@@ -229,7 +229,7 @@ async function produtosRoutes(fastify, options) {
 
     subProdutosFotos = subProdutosFotos.map((subprodutoFoto) =>
       Object.assign(subprodutoFoto, {
-        nmpath: `${process.env.NEXT_PUBLIC_STORAGE_PUBLIC}${subprodutoFoto.nmpath}`,
+        nmpath: `${process.env.STORAGE_PUBLIC}${subprodutoFoto.nmpath}`,
       })
     );
 
