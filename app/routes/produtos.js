@@ -9,12 +9,17 @@ async function produtosRoutes(fastify, options) {
   fastify.get("/", async (request, reply) => {
     const query = new Map(Object.entries(request.query));
 
-    const page = Number(query.page);
-    const take = Number(query.size) || 10;
+    const storagePublic = process.env.STORAGE_PUBLIC;
+
+    const page = Number(query.get("page") || 1);
+    const take = Number(query.has("size") ? query.get("size") : 10);
 
     const skip = page ? (page - 1) * take : 0;
 
-    const produtos = await client.produto.findMany({
+    const orderBy = query.get("orderBy") || "nmproduto";
+    const orderDirection = query.get("order") || "asc";
+
+    let produtos = await client.produto.findMany({
       select: {
         cdproduto: true,
         nmproduto: true,
@@ -27,24 +32,22 @@ async function produtosRoutes(fastify, options) {
           },
         },
         produto_foto: {
-          select: {
-            nmaspect: true,
-            cdprodutofoto: true,
-            nmmimetype: true,
-            nmpath: true,
+          include: {
+            produto_foto_tipo: true,
           },
         },
         produto_preco: {
           select: {
             cdprodutopreco: true,
             vlproduto: true,
+            flativo: true,
           },
         },
         estoque: true,
       },
       where: {
         produto_preco: {
-          every: {
+          some: {
             flativo: "S",
           },
         },
@@ -57,9 +60,22 @@ async function produtosRoutes(fastify, options) {
           mode: "insensitive",
         },
       },
+      orderBy: {
+        [orderBy]: orderDirection,
+      },
       skip: skip || 0,
       take: take || 10,
     });
+
+    produtos = produtos.map((produto) =>
+      Object.assign(produto, {
+        produto_foto: produto.produto_foto.map((foto) =>
+          Object.assign(foto, {
+            nmpath: `${storagePublic}${foto.nmpath}`,
+          })
+        ),
+      })
+    );
 
     reply.send(produtos);
   });

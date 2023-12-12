@@ -361,13 +361,15 @@ model produto {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model produto_foto {
-  cdprodutofoto String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  cdproduto     String  @db.Uuid
-  nmprodutofoto String? @db.VarChar(50)
-  nmpath        String? @db.VarChar(255)
-  nmmimetype    String? @db.VarChar(100)
-  nmaspect      String? @db.VarChar(5)
-  produto       produto @relation(fields: [cdproduto], references: [cdproduto], onDelete: NoAction, onUpdate: NoAction)
+  cdprodutofoto     String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  cdproduto         String             @db.Uuid
+  nmprodutofoto     String?            @db.VarChar(50)
+  nmpath            String?            @db.VarChar(255)
+  nmmimetype        String?            @db.VarChar(100)
+  nmaspect          String?            @db.VarChar(5)
+  nmprodutofototipo String?            @db.VarChar(255)
+  produto_foto_tipo produto_foto_tipo? @relation(fields: [nmprodutofototipo], references: [nmprodutofototipo], onDelete: NoAction, onUpdate: NoAction, map: "fk_nmprodutofototipo")
+  produto           produto            @relation(fields: [cdproduto], references: [cdproduto], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -547,6 +549,15 @@ model estoque {
   dtcriado     DateTime  @default(now()) @db.Timestamp(6)
   dtatualizado DateTime? @db.Timestamp(6)
   produto      produto   @relation(fields: [cdproduto], references: [cdproduto], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model produto_foto_tipo {
+  cdprodutofototipo String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nmprodutofototipo String         @unique(map: "uq_produto_foto_tipo") @db.VarChar(255)
+  deprodutofototipo String?        @db.VarChar(255)
+  produto_foto      produto_foto[]
 
   @@schema("public")
 }
