@@ -102,7 +102,6 @@ async function produtosRoutes(fastify, options) {
 
     const hasNextPage = produtos.length === take;
 
-    // nextCursor usando coluna uuid, obs: gt não funciona com coluna uuid|string
     let nextCursor = null;
     if (hasNextPage) {
       const findNextCursor = await client.produto.findMany({
