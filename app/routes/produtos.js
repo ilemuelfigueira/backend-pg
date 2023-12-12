@@ -1,4 +1,5 @@
 import client from "../lib/prisma.js";
+import { mapToObject } from "../lib/util.js";
 
 /**
  *
@@ -10,16 +11,28 @@ async function produtosRoutes(fastify, options) {
     const query = new Map(Object.entries(request.query));
 
     const storagePublic = process.env.STORAGE_PUBLIC;
-
-    const page = Number(query.get("page") || 1);
     const take = Number(query.has("size") ? query.get("size") : 10);
 
-    const skip = page ? (page - 1) * take : 0;
+    const whereMap = new Map();
 
-    const orderBy = query.get("orderBy") || "nmproduto";
-    const orderDirection = query.get("order") || "asc";
+    if (query.has("nmproduto")) {
+      whereMap.set("nmproduto", {
+        contains: query.get("nmproduto"),
+        mode: "insensitive",
+      });
+    }
 
-    let produtos = await client.produto.findMany({
+    if (query.has("nmprodutotipo")) {
+      whereMap.set("nmprodutotipo", {
+        contains: query.get("nmprodutotipo"),
+        mode: "insensitive",
+      });
+    }
+
+    /**
+     * @type {import(".prisma/client").Prisma.produtoFindManyArgs}
+     */
+    const args = {
       select: {
         cdproduto: true,
         nmproduto: true,
@@ -45,26 +58,36 @@ async function produtosRoutes(fastify, options) {
         },
         estoque: true,
       },
-      where: {
-        produto_preco: {
-          some: {
-            flativo: "S",
-          },
-        },
-        nmproduto: {
-          contains: query.get("nmproduto"),
-          mode: "insensitive",
-        },
-        nmprodutotipo: {
-          contains: query.get("nmprodutotipo"),
-          mode: "insensitive",
-        },
-      },
       orderBy: {
-        [orderBy]: orderDirection,
+        nmproduto: "asc",
       },
-      skip: skip || 0,
-      take: take || 10,
+      take,
+    };
+
+    if (query.has("orderBy")) {
+      const orderBy = query.get("orderBy");
+
+      const orderDirection = query.has("orderDirection")
+        ? query.get("orderDirection")
+        : "asc";
+
+      args.orderBy = {
+        [orderBy]: orderDirection,
+      };
+    }
+
+    if (query.has("cursor")) {
+      args.cursor = {
+        nmproduto: query.get("cursor"),
+      };
+    }
+
+    if (whereMap.size > 0) {
+      args.where = mapToObject(whereMap);
+    }
+
+    let produtos = await client.produto.findMany({
+      ...args,
     });
 
     produtos = produtos.map((produto) =>
@@ -77,7 +100,36 @@ async function produtosRoutes(fastify, options) {
       })
     );
 
-    reply.send(produtos);
+    const hasNextPage = produtos.length === take;
+
+    // nextCursor usando coluna uuid, obs: gt não funciona com coluna uuid|string
+    let nextCursor = null;
+    if (hasNextPage) {
+      const findNextCursor = await client.produto.findMany({
+        where: args.where,
+        orderBy: args.orderBy,
+        cursor: {
+          nmproduto: produtos[produtos.length - 1].nmproduto,
+        },
+        skip: 1,
+      });
+
+      if (findNextCursor.length > 0) {
+        nextCursor = findNextCursor[0].nmproduto;
+      }
+    }
+
+    const lastCursor = produtos.length > 0 ? produtos[0].nmproduto : null;
+
+    console.log({
+      take,
+    });
+
+    reply.send({
+      nextCursor,
+      lastCursor,
+      items: produtos,
+    });
   });
 
   fastify.get("/:cdproduto", async (request, reply) => {
