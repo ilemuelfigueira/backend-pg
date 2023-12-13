@@ -12,6 +12,8 @@ async function produtosRoutes(fastify, options) {
 
     const storagePublic = process.env.STORAGE_PUBLIC;
     const take = Number(query.has("size") ? query.get("size") : 10);
+    const page = query.has("page") ? Number(query.get("page")) : 1;
+    const skip = (page - 1) * take;
 
     const whereMap = new Map();
 
@@ -58,9 +60,7 @@ async function produtosRoutes(fastify, options) {
         },
         estoque: true,
       },
-      orderBy: {
-        nmproduto: "asc",
-      },
+      skip,
       take,
     };
 
@@ -76,10 +76,13 @@ async function produtosRoutes(fastify, options) {
       };
     }
 
-    if (query.has("cursor")) {
-      args.cursor = {
-        nmproduto: query.get("cursor"),
-      };
+    if (!args.orderBy) {
+      args.orderBy = [
+        {
+          nmproduto: "asc",
+        },
+        { dtcriado: "desc" },
+      ];
     }
 
     if (whereMap.size > 0) {
@@ -100,33 +103,20 @@ async function produtosRoutes(fastify, options) {
       })
     );
 
-    const hasNextPage = produtos.length === take;
+    const totalPages = Math.ceil(
+      (await client.produto.count({ where: args.where })) / take
+    );
 
-    let nextCursor = null;
-    if (hasNextPage) {
-      const findNextCursor = await client.produto.findMany({
-        where: args.where,
-        orderBy: args.orderBy,
-        cursor: {
-          nmproduto: produtos[produtos.length - 1].nmproduto,
-        },
-        skip: 1,
-      });
+    const hasNextPage = page < totalPages;
+    const hasBeforePage = page > 1;
 
-      if (findNextCursor.length > 0) {
-        nextCursor = findNextCursor[0].nmproduto;
-      }
-    }
-
-    const lastCursor = produtos.length > 0 ? produtos[0].nmproduto : null;
-
-    console.log({
-      take,
-    });
+    let next = hasNextPage ? page + 1 : null;
+    let last = hasBeforePage ? page - 1 : null;
 
     reply.send({
-      nextCursor,
-      lastCursor,
+      next,
+      last,
+      total: totalPages,
       items: produtos,
     });
   });
