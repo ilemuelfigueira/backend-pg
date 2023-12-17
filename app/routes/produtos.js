@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import client from "../lib/prisma.js";
 import { mapToObject } from "../lib/util.js";
 
@@ -31,81 +32,116 @@ async function produtosRoutes(fastify, options) {
       });
     }
 
+    if (query.has("cdproduto")) {
+      whereMap.set("cdproduto", {
+        equals: query.get("cdproduto"),
+      });
+    }
+
     /**
      * @type {import(".prisma/client").Prisma.produtoFindManyArgs}
      */
     const args = {
-      select: {
-        cdproduto: true,
-        nmproduto: true,
-        deproduto: true,
-        produto_tipo: {
-          select: {
-            cdprodutotipo: true,
-            nmprodutotipo: true,
-            deprodutotipo: true,
-          },
-        },
-        produto_foto: {
-          include: {
-            produto_foto_tipo: true,
-          },
-        },
-        produto_preco: {
-          select: {
-            cdprodutopreco: true,
-            vlproduto: true,
-            flativo: true,
-          },
-        },
-        estoque: true,
-      },
       skip,
       take,
     };
 
     if (query.has("orderBy")) {
-      const orderBy = query.get("orderBy");
+      const orderBy = `p.${query.get("orderBy") || "nmprodutotipo"}`;
 
-      const orderDirection = query.has("orderDirection")
-        ? query.get("orderDirection")
-        : "asc";
+      const orderDirection = `p.${
+        query.has("orderDirection") ? query.get("orderDirection") : "asc"
+      }`;
 
-      args.orderBy = {
-        [orderBy]: orderDirection,
-      };
+      args.orderBy = Prisma.sql`${orderBy}, ${orderDirection}`;
     }
 
     if (!args.orderBy) {
-      args.orderBy = [
-        {
-          nmproduto: "asc",
-        },
-        { dtcriado: "desc" },
-      ];
+      args.orderBy = Prisma.sql`p.nmproduto asc, p.dtcriado asc`;
     }
 
     if (whereMap.size > 0) {
       args.where = mapToObject(whereMap);
     }
 
-    let produtos = await client.produto.findMany({
-      ...args,
-    });
+    let _produtos = await client.$queryRaw`
+      select 
+        p.*
+      from produto p
+      inner join produto_tipo pt 
+        on pt.cdprodutotipo = p.cdprodutotipo 
+      inner join produto_preco pp 
+        on pp.cdproduto = p.cdproduto 
+        and pp.flativo = 'S'
+      where 1=1
+        ${
+          query.has("nmproduto")
+            ? Prisma.sql`and p.nmproduto ilike ${whereMap.get("nmproduto")}`
+            : Prisma.empty
+        }
+        ${
+          query.has("nmprodutotipo")
+            ? Prisma.sql`and pt.nmprodutotipo ilike ${whereMap.get(
+                "nmprodutotipo"
+              )}`
+            : Prisma.empty
+        }
+        ${
+          query.has("cdproduto")
+            ? Prisma.sql`and p.cdproduto::text = ${whereMap.get("cdproduto")}`
+            : Prisma.empty
+        }
+      order by ${args.orderBy}
+      limit ${args.take} 
+      offset ${args.skip}
+      ;
+    `;
 
-    produtos = produtos.map((produto) =>
-      Object.assign(produto, {
-        produto_foto: produto.produto_foto.map((foto) =>
-          Object.assign(foto, {
-            nmpath: `${storagePublic}${foto.nmpath}`,
-          })
-        ),
-      })
-    );
+    // cast to uuid
+    const idsProdutos =
+      _produtos.length > 0
+        ? Prisma.sql`and p.cdproduto::text in (${Prisma.join(
+            _produtos.map((produto) => produto.cdproduto)
+          )})`
+        : "";
 
-    const totalPages = Math.ceil(
-      (await client.produto.count({ where: args.where })) / take
-    );
+    let produto_foto = await client.$queryRaw`
+      select
+        pf.*,
+        CONCAT(${storagePublic}, pf.nmpath) as nmpath
+      from produto_foto pf
+      inner join produto p
+        on p.cdproduto = pf.cdproduto
+      where 1=1
+      ${idsProdutos}
+      order by pf.nmpath
+    `;
+
+    let produto_preco = await client.$queryRaw`
+      select
+        pp.*
+      from produto_preco pp
+      inner join produto p
+        on p.cdproduto = pp.cdproduto
+      where 1=1
+      ${idsProdutos}
+      and pp.flativo = 'S'
+      limit 1
+    `;
+
+    _produtos = _produtos.map((produto) => ({
+      ...produto,
+      produto_foto:
+        produto_foto.filter((foto) => foto.cdproduto === produto.cdproduto) ||
+        [],
+      produto_preco:
+        produto_preco.filter(
+          (preco) => preco.cdproduto === produto.cdproduto
+        ) || [],
+    }));
+
+    const totalItems = await client.produto.count({ where: args.where });
+    const totalPages = Math.ceil(totalItems / take);
 
     const hasNextPage = page < totalPages;
     const hasBeforePage = page > 1;
@@ -116,8 +152,9 @@ async function produtosRoutes(fastify, options) {
     reply.send({
       next,
       last,
-      total: totalPages,
-      items: produtos,
+      totalPages: totalPages,
+      totalItems: totalItems,
+      items: _produtos,
     });
   });
 
@@ -251,8 +288,16 @@ async function produtosRoutes(fastify, options) {
 
     const subProdutos = await client.sub_produto.findMany({
       include: {
-        sub_produto_foto: true,
-        sub_produto_preco: true,
+        sub_produto_foto: {
+          orderBy: {
+            nmpath: "asc",
+          },
+        },
+        sub_produto_preco: {
+          orderBy: {
+            vlsubproduto: "asc",
+          },
+        },
       },
       where: {
         cdproduto: cdproduto,
