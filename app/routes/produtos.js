@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import client from "../lib/prisma.js";
 import { mapToObject } from "../lib/util.js";
+import knexClient from "../lib/knex.js";
 
 /**
  *
@@ -46,27 +47,36 @@ async function produtosRoutes(fastify, options) {
       take,
     };
 
-    if (query.has("orderBy")) {
-      const orderBy = `p.${query.get("orderBy") || "nmprodutotipo"}`;
+    args.orderBy = query.has("orderBy")
+      ? `order by ${query.get("orderBy")} ${
+          query.get("orderDirection") || "asc"
+        }`
+      : "";
 
-      const orderDirection = `p.${
-        query.has("orderDirection") ? query.get("orderDirection") : "asc"
-      }`;
+    args.where = `
+      ${
+        query.has("nmproduto")
+          ? `and p.nmproduto ilike '%${query.get("nmproduto")}%'`
+          : ""
+      }
+      ${
+        query.has("nmprodutotipo")
+          ? `and pt.nmprodutotipo ilike '%${query.get("nmprodutotipo")}%'`
+          : ""
+      }
+      ${
+        query.has("cdproduto")
+          ? `and p.cdproduto = '${query.get("cdproduto")}'`
+          : ""
+      }
+    `;
 
-      args.orderBy = Prisma.sql`${orderBy}, ${orderDirection}`;
-    }
-
-    if (!args.orderBy) {
-      args.orderBy = Prisma.sql`p.nmproduto asc, p.dtcriado asc`;
-    }
-
-    if (whereMap.size > 0) {
-      args.where = mapToObject(whereMap);
-    }
-
-    let _produtos = await client.$queryRaw`
+    let produtos = await knexClient
+      .raw(
+        `
       select 
-        p.*
+        p.*,
+        count(*) over() as "totalItems"
       from produto p
       inner join produto_tipo pt 
         on pt.cdprodutotipo = p.cdprodutotipo 
@@ -74,50 +84,42 @@ async function produtosRoutes(fastify, options) {
         on pp.cdproduto = p.cdproduto 
         and pp.flativo = 'S'
       where 1=1
-        ${
-          query.has("nmproduto")
-            ? Prisma.sql`and p.nmproduto ilike ${whereMap.get("nmproduto")}`
-            : Prisma.empty
-        }
-        ${
-          query.has("nmprodutotipo")
-            ? Prisma.sql`and pt.nmprodutotipo ilike ${whereMap.get(
-                "nmprodutotipo"
-              )}`
-            : Prisma.empty
-        }
-        ${
-          query.has("cdproduto")
-            ? Prisma.sql`and p.cdproduto::text = ${whereMap.get("cdproduto")}`
-            : Prisma.empty
-        }
-      order by ${args.orderBy}
-      limit ${args.take} 
+        ${args.where}
+      ${args.orderBy}
+      limit ${args.take}
       offset ${args.skip}
       ;
-    `;
+      `
+      )
+      .then((res) => res.rows);
 
-    // cast to uuid
-    const idsProdutos =
-      _produtos.length > 0
-        ? Prisma.sql`and p.cdproduto::text in (${Prisma.join(
-            _produtos.map((produto) => produto.cdproduto)
-          )})`
+    let idsProdutos =
+      produtos.length > 0
+        ? `and p.cdproduto in (${produtos
+            .map((produto) => `'${produto.cdproduto}'`)
+            .join(", ")})`
         : "";
 
-    let produto_foto = await client.$queryRaw`
+    let produto_foto = await knexClient
+      .raw(
+        `
       select
         pf.*,
-        CONCAT(${storagePublic}, pf.nmpath) as nmpath
+        CONCAT('${storagePublic}', pf.nmpath) as nmpath
       from produto_foto pf
       inner join produto p
         on p.cdproduto = pf.cdproduto
       where 1=1
-      ${idsProdutos}
+        ${idsProdutos}
       order by pf.nmpath
-    `;
+      ;
+    `
+      )
+      .then((res) => res.rows);
 
-    let produto_preco = await client.$queryRaw`
+    let produto_preco = await knexClient
+      .raw(
+        `
       select
         pp.*
       from produto_preco pp
@@ -126,10 +128,25 @@ async function produtosRoutes(fastify, options) {
       where 1=1
       ${idsProdutos}
       and pp.flativo = 'S'
-      limit 1
-    `;
+    `
+      )
+      .then((res) => res.rows);
 
-    _produtos = _produtos.map((produto) => ({
+    let produto_tipo = await knexClient
+      .raw(
+        `
+      select distinct
+          pt.*
+      from produto_tipo pt
+      inner join produto p
+          on p.cdprodutotipo = pt.cdprodutotipo
+      where 1=1
+      ${idsProdutos}
+    `
+      )
+      .then((res) => res.rows);
+
+    produtos = produtos.map((produto) => ({
       ...produto,
       produto_foto:
         produto_foto.filter((foto) => foto.cdproduto === produto.cdproduto) ||
@@ -138,9 +155,13 @@ async function produtosRoutes(fastify, options) {
         produto_preco.filter(
           (preco) => preco.cdproduto === produto.cdproduto
         ) || [],
+      produto_tipo:
+        produto_tipo.filter(
+          (tipo) => tipo.cdprodutotipo === produto.cdprodutotipo
+        ) || [],
     }));
 
-    const totalItems = await client.produto.count({ where: args.where });
+    const totalItems = produtos[0] ? Number(produtos[0].totalItems) : 0;
     const totalPages = Math.ceil(totalItems / take);
 
     const hasNextPage = page < totalPages;
@@ -154,7 +175,7 @@ async function produtosRoutes(fastify, options) {
       last,
       totalPages: totalPages,
       totalItems: totalItems,
-      items: _produtos,
+      items: produtos,
     });
   });
 
