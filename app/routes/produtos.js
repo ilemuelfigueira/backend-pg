@@ -189,7 +189,7 @@ async function produtosRoutes(fastify, options) {
 
     const cdproduto = paramsMap.get("cdproduto");
 
-    produto = await knexClient
+    let produto = await knexClient
       .raw(
         `
       select 
