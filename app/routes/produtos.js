@@ -3,6 +3,8 @@ import client from "../lib/prisma.js";
 import { mapToObject } from "../lib/util.js";
 import knexClient from "../lib/knex.js";
 
+const PUBLIC_STORAGE = process.env.STORAGE_PUBLIC;
+
 /**
  *
  * @param {import("fastify").FastifyInstance} fastify
@@ -12,7 +14,6 @@ async function produtosRoutes(fastify, options) {
   fastify.get("/", async (request, reply) => {
     const query = new Map(Object.entries(request.query));
 
-    const storagePublic = process.env.STORAGE_PUBLIC;
     const take = Number(query.has("size") ? query.get("size") : 10);
     const page = query.has("page") ? Number(query.get("page")) : 1;
     const skip = (page - 1) * take;
@@ -105,7 +106,7 @@ async function produtosRoutes(fastify, options) {
         `
       select
         pf.*,
-        CONCAT('${storagePublic}', pf.nmpath) as nmpath
+        CONCAT('${PUBLIC_STORAGE}', pf.nmpath) as nmpath
       from produto_foto pf
       inner join produto p
         on p.cdproduto = pf.cdproduto
@@ -188,19 +189,54 @@ async function produtosRoutes(fastify, options) {
 
     const cdproduto = paramsMap.get("cdproduto");
 
-    const produto = await client.produto.findUnique({
-      include: {
-        produto_foto: true,
-        produto_preco: true,
-      },
-      where: {
-        produto_preco: {
-          every: {
-            flativo: "S",
-          },
-        },
-        cdproduto: cdproduto,
-      },
+    produto = await knexClient
+      .raw(
+        `
+      select 
+        p.*
+      from produto p
+      inner join produto_preco pp
+        on pp.cdproduto = p.cdproduto
+        and pp.flativo = 'S'
+      where 1=1
+      and p.cdproduto = '${cdproduto}'
+    `
+      )
+      .then((res) => res.rows[0]);
+
+    const produto_foto = await knexClient
+      .raw(
+        `
+      select
+        pf.*,
+        CONCAT('${process.env.STORAGE_PUBLIC}', pf.nmpath) as nmpath
+      from produto_foto pf
+      inner join produto p
+        on p.cdproduto = pf.cdproduto
+      where 1=1
+      and p.cdproduto = '${cdproduto}'
+    `
+      )
+      .then((res) => res.rows);
+
+    const produto_preco = await knexClient
+      .raw(
+        `
+      select
+        pp.*
+      from produto_preco pp
+      inner join produto p
+        on p.cdproduto = pp.cdproduto
+      where 1=1
+      and p.cdproduto = '${cdproduto}'
+      and pp.flativo = 'S'
+    `
+      )
+      .then((res) => res.rows);
+
+    produto = Object.assign(produto, {
+      produto_foto: produto_foto,
+      produto_preco: produto_preco,
     });
 
     reply.send(produto);
@@ -307,7 +343,7 @@ async function produtosRoutes(fastify, options) {
 
     const cdproduto = paramsMap.get("cdproduto");
 
-    const subProdutos = await client.sub_produto.findMany({
+    let subProdutos = await client.sub_produto.findMany({
       include: {
         sub_produto_foto: {
           orderBy: {
@@ -329,6 +365,66 @@ async function produtosRoutes(fastify, options) {
         },
       },
     });
+
+    subProdutos = await knexClient
+      .raw(
+        `
+      select
+        sp.*
+      from sub_produto sp
+      inner join sub_produto_preco spp
+        on spp.cdsubproduto = sp.cdsubproduto
+        and spp.flativo = 'S'
+      where 1=1
+        and sp.cdproduto = '${cdproduto}'
+      order by sp.nmsubprodutotipo asc, spp.vlsubproduto asc, sp.nmsubproduto asc
+    `
+      )
+      .then((res) => res.rows);
+
+    const subProdutosFotos = await knexClient
+      .raw(
+        `
+      select
+        spf.*,
+        CONCAT('${PUBLIC_STORAGE}', spf.nmpath) as nmpath
+      from sub_produto_foto spf
+      inner join sub_produto sp
+        on sp.cdsubproduto = spf.cdsubproduto
+      where 1=1
+        and sp.cdproduto = '${cdproduto}'
+      order by spf.nmpath asc
+    `
+      )
+      .then((res) => res.rows);
+
+    const subProdutosPrecos = await knexClient
+      .raw(
+        `
+      select
+        spp.*
+      from sub_produto_preco spp
+      inner join sub_produto sp
+        on sp.cdsubproduto = spp.cdsubproduto
+      where 1=1
+        and sp.cdproduto = '${cdproduto}'
+        and spp.flativo = 'S'
+      order by spp.vlsubproduto asc
+    `
+      )
+      .then((res) => res.rows);
+
+    subProdutos = subProdutos.map((subProduto) => ({
+      ...subProduto,
+      sub_produto_foto:
+        subProdutosFotos.filter(
+          (foto) => foto.cdsubproduto === subProduto.cdsubproduto
+        ) || [],
+      sub_produto_preco:
+        subProdutosPrecos.filter(
+          (preco) => preco.cdsubproduto === subProduto.cdsubproduto
+        ) || [],
+    }));
 
     reply.send(subProdutos);
   });
