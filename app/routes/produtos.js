@@ -211,11 +211,15 @@ async function produtosRoutes(fastify, options) {
       .raw(
         `
       select 
-        p.*
+        p.*,
+        (coalesce(vmm.soma_min_subproduto, 0) + coalesce(pp.vlproduto, 0)) as valorminimo,
+        (coalesce(vmm.soma_max_subproduto, 0) + coalesce(pp.vlproduto, 0)) as valormaximo
       from produto p
       inner join produto_preco pp
         on pp.cdproduto = p.cdproduto
         and pp.flativo = 'S'
+      left join vw_min_max_subproduto_preco vmm
+        on vmm.cdproduto = p.cdproduto
       where 1=1
       and p.cdproduto = '${cdproduto}'
     `
