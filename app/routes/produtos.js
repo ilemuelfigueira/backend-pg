@@ -52,7 +52,7 @@ async function produtosRoutes(fastify, options) {
       ? `order by ${query.get("orderBy")} ${
           query.get("orderDirection") || "asc"
         }`
-      : "";
+      : "order by valorminimo asc";
 
     args.where = `
       ${
