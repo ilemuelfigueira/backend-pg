@@ -70,6 +70,20 @@ async function produtosRoutes(fastify, options) {
           ? `and p.cdproduto = '${query.get("cdproduto")}'`
           : ""
       }
+      ${
+        query.has("valorminimo")
+          ? `and (coalesce(vmm.soma_min_subproduto, 0) + coalesce(pp.vlproduto, 0)) >= ${query.get(
+              "valorminimo"
+            )}`
+          : ""
+      }
+      ${
+        query.has("valormaximo")
+          ? `and (coalesce(vmm.soma_max_subproduto, 0) + coalesce(pp.vlproduto, 0)) <= ${query.get(
+              "valormaximo"
+            )}`
+          : ""
+      }
     `;
 
     let produtos = await knexClient
@@ -77,13 +91,17 @@ async function produtosRoutes(fastify, options) {
         `
       select 
         p.*,
-        count(*) over() as "totalItems"
+        count(*) over() as "totalItems",
+        (coalesce(vmm.soma_min_subproduto, 0) + coalesce(pp.vlproduto, 0)) as valorminimo,
+        (coalesce(vmm.soma_max_subproduto, 0) + coalesce(pp.vlproduto, 0)) as valormaximo
       from produto p
       inner join produto_tipo pt 
         on pt.cdprodutotipo = p.cdprodutotipo 
       inner join produto_preco pp 
         on pp.cdproduto = p.cdproduto 
         and pp.flativo = 'S'
+      left join vw_min_max_subproduto_preco vmm
+        on vmm.cdproduto = p.cdproduto
       where 1=1
         ${args.where}
       ${args.orderBy}
