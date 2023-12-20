@@ -45,7 +45,7 @@ async function baseRoutes(fastify, options) {
 
         request.headers.session = session;
       } catch (error) {
-        reply.status(401).send({ message: error });
+        reply.status(401).send({ message: error.message });
       }
     }
   );
