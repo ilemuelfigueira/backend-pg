@@ -356,6 +356,7 @@ model produto {
   produto_preco                                    produto_preco[]
   sub_produto                                      sub_produto[]
 
+  @@index([cdproduto, dtcriado], map: "idx_nmproduto")
   @@schema("public")
 }
 
