@@ -191,6 +191,7 @@ async function produtosRoutes(fastify, options) {
 
     reply.send({
       next,
+      page,
       last,
       totalPages: totalPages,
       totalItems: totalItems,
