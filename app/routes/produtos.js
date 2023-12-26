@@ -366,30 +366,7 @@ async function produtosRoutes(fastify, options) {
 
     const cdproduto = paramsMap.get("cdproduto");
 
-    let subProdutos = await client.sub_produto.findMany({
-      include: {
-        sub_produto_foto: {
-          orderBy: {
-            nmpath: "asc",
-          },
-        },
-        sub_produto_preco: {
-          orderBy: {
-            vlsubproduto: "asc",
-          },
-        },
-      },
-      where: {
-        cdproduto: cdproduto,
-        sub_produto_preco: {
-          every: {
-            flativo: "S",
-          },
-        },
-      },
-    });
-
-    subProdutos = await knexClient
+    let subProdutos = await knexClient
       .raw(
         `
       select
