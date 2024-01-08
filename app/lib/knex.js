@@ -5,20 +5,15 @@ import knex from "knex";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
-const createKnex = knex({
-  client: "pg",
-  connection: DATABASE_URL,
-  searchPath: ["public", "auth"],
-});
-
-if (!global.knex) {
-  global.knex = createKnex;
-}
-
 /**
  * @type {import('knex').Knex}
  */
-const knexClient = global.knex || createKnex;
+const knexClient = knex({
+  client: "pg",
+  connection: DATABASE_URL,
+  searchPath: ["public", "auth"],
+  pool: { min: 0, max: 7 }
+}).on("connect", (e) => console.log("connected to db"));
 
 export { knexClient };
 
