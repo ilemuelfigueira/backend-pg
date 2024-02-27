@@ -81,6 +81,10 @@ async function baseRoutes(fastify, options) {
   await fastify.register(import("./pacotes.js"), {
     prefix: "/pacotes",
   });
+
+  await fastify.register(import("./pedidos.js"), {
+    prefix: "/pedidos",
+  });
 }
 
 export default baseRoutes;
