@@ -6,6 +6,9 @@ import { buscarUsuarioQuery } from "../queries/buscarUsuario.query.js";
 import { buscarPedidoPorCdCarrinhoQuery } from "../queries/buscarPedidoPorCdCarrinho.query.js";
 import { inserirPedidoQuery } from "../queries/inserirPedido.query.js";
 
+import * as yup from "yup";
+import { buscarPedidoPorPreferenceIdQuery } from "../queries/buscarPedidoPorPreferenceId.query.js";
+
 const Knex = knex.Knex;
 
 const BACKEND_URL =
@@ -94,15 +97,6 @@ export default async function (fastify, options) {
           .raw(buscarUsuarioQuery({ cdusuario: user.id }))
           .then((res) => res.rows[0]);
 
-        // const payer = {
-        //   name: usuarioForm.name,
-        //   email: usuarioForm.email,
-        //   phone: {
-        //     area_code: usuarioForm.phone_code,
-        //     number: usuarioForm.phone_number,
-        //   },
-        // };
-
         console.log(usuarioForm);
 
         const endereco = await trx.raw(`
@@ -145,7 +139,77 @@ export default async function (fastify, options) {
       return reply.send(result);
     }
   );
+
+  fastify.post(
+    "/feedback/:status",
+    async (request, reply) => {
+      const statusList = ["success", "failure", "pending"];
+
+      const { status } = request.params;
+
+      if (!statusList.some((item) => status == item))
+        return reply.status(400).send({ message: "Status inválido" });
+
+      const validateQuery = await feedbackQueryObject.isValid(request.query);
+
+      if (!validateQuery)
+        await feedbackQueryObject
+          .validate(request.query)
+          .catch((err) => err.errors);
+
+      const parsedQuery = feedbackQueryObject.cast(request.query);
+
+      const getStatus = (status) => {
+        switch (status) {
+          case "success":
+            return "PAID";
+          case "failed":
+            return "FAILED";
+          case "pending":
+            return "PENDING";
+          default:
+            return "PENDING";
+        }
+      };
+
+      const updatePedidoMetaQuery = `
+      update public.pedido set
+        raw_payment_meta_data = '${JSON.stringify(parsedQuery)}',
+        status = '${getStatus(status)}'
+      where preference_id = '${parsedQuery.preference_id}';`;
+
+      const result = await knexClient.transaction(async (trx) => {
+        await trx.raw(updatePedidoMetaQuery);
+
+        const pedido = await trx
+          .raw(
+            buscarPedidoPorPreferenceIdQuery({
+              preferenceId: parsedQuery.preference_id,
+            })
+          )
+          .then((res) => res.rows[0]);
+
+        return pedido;
+      });
+
+      reply.send(result);
+    }
+  );
 }
+
+const feedbackQueryObject = yup.object().shape({
+  collection_status: yup.string(),
+  external_reference: yup.string(),
+  merchant_account_id: yup.string(),
+  merchant_order_id: yup.string(),
+  payment_id: yup.string(),
+  payment_type: yup.string(),
+  preference_id: yup.string(),
+  processing_mode: yup.string(),
+  site_id: yup.string(),
+  status: yup.string(),
+  "success?collection_id": yup.string(),
+});
 
 /**
  *
@@ -185,9 +249,6 @@ async function createPreference(items, cdcarrinho, payer) {
   console.debug(`Cadastrando preferência external_reference->${cdcarrinho}`);
   return await mpgPreference.create({
     body: {
-      payer: {
-        ...payer,
-      },
       external_reference: cdcarrinho,
       items,
       back_urls,
