@@ -8,6 +8,7 @@ import { inserirPedidoQuery } from "../queries/inserirPedido.query.js";
 
 import * as yup from "yup";
 import { buscarPedidoPorPreferenceIdQuery } from "../queries/buscarPedidoPorPreferenceId.query.js";
+import { buscarPedidosUsuario } from "../queries/buscarPedido.query.js";
 
 const Knex = knex.Knex;
 
@@ -140,61 +141,78 @@ export default async function (fastify, options) {
     }
   );
 
-  fastify.post(
-    "/feedback/:status",
+  fastify.get(
+    "/",
+    {
+      onRequest: [fastify.authenticate],
+    },
     async (request, reply) => {
-      const statusList = ["success", "failure", "pending"];
+      const { session } = request.headers;
 
-      const { status } = request.params;
+      if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
-      if (!statusList.some((item) => status == item))
-        return reply.status(400).send({ message: "Status inválido" });
+      const user = session.user;
 
-      const validateQuery = await feedbackQueryObject.isValid(request.query);
+      const pedidos = await knexClient.raw(
+        buscarPedidosUsuario({ cdusuario: user.id })
+      );
 
-      if (!validateQuery)
-        await feedbackQueryObject
-          .validate(request.query)
-          .catch((err) => err.errors);
+      reply.send(pedidos.rows)
+    }
+  );
 
-      const parsedQuery = feedbackQueryObject.cast(request.query);
+  fastify.post("/feedback/:status", async (request, reply) => {
+    const statusList = ["success", "failure", "pending"];
 
-      const getStatus = (status) => {
-        switch (status) {
-          case "success":
-            return "PAID";
-          case "failed":
-            return "FAILED";
-          case "pending":
-            return "PENDING";
-          default:
-            return "PENDING";
-        }
-      };
+    const { status } = request.params;
 
-      const updatePedidoMetaQuery = `
+    if (!statusList.some((item) => status == item))
+      return reply.status(400).send({ message: "Status inválido" });
+
+    const validateQuery = await feedbackQueryObject.isValid(request.query);
+
+    if (!validateQuery)
+      await feedbackQueryObject
+        .validate(request.query)
+        .catch((err) => err.errors);
+
+    const parsedQuery = feedbackQueryObject.cast(request.query);
+
+    const getStatus = (status) => {
+      switch (status) {
+        case "success":
+          return "PAID";
+        case "failed":
+          return "FAILED";
+        case "pending":
+          return "PENDING";
+        default:
+          return "PENDING";
+      }
+    };
+
+    const updatePedidoMetaQuery = `
       update public.pedido set
         raw_payment_meta_data = '${JSON.stringify(parsedQuery)}',
         status = '${getStatus(status)}'
       where preference_id = '${parsedQuery.preference_id}';`;
 
-      const result = await knexClient.transaction(async (trx) => {
-        await trx.raw(updatePedidoMetaQuery);
+    const result = await knexClient.transaction(async (trx) => {
+      await trx.raw(updatePedidoMetaQuery);
 
-        const pedido = await trx
-          .raw(
-            buscarPedidoPorPreferenceIdQuery({
-              preferenceId: parsedQuery.preference_id,
-            })
-          )
-          .then((res) => res.rows[0]);
+      const pedido = await trx
+        .raw(
+          buscarPedidoPorPreferenceIdQuery({
+            preferenceId: parsedQuery.preference_id,
+          })
+        )
+        .then((res) => res.rows[0]);
 
-        return pedido;
-      });
+      return pedido;
+    });
 
-      reply.send(result);
-    }
-  );
+    reply.send(result);
+  });
 }
 
 const feedbackQueryObject = yup.object().shape({

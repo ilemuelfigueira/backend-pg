@@ -1,4 +1,5 @@
 import client from "../lib/prisma.js";
+import knexClient from "../lib/knex.js";
 import { buscarCarrinhoQuery } from "../queries/buscarCarrinho.query.js";
 
 /**
@@ -19,7 +20,7 @@ export default async function (fastify, options) {
 
       const user = session.user;
 
-      const result = await client.carrinho.findFirstOrThrow({
+      const result = await client.carrinho.findFirst({
         include: {
           carrinho_situacao: true,
         },
@@ -28,6 +29,8 @@ export default async function (fastify, options) {
           sgcarrinhosituacao: "PEN",
         },
       });
+
+      if(!result) return reply.status(404).send({ message: "Nenhum carrinho encontrado "})
 
       return reply.send(result);
     }
@@ -68,8 +71,5 @@ export default async function (fastify, options) {
 export async function buscarPacotesCarrinhoByCdCarrinho(cdcarrinho) {
   const query = buscarCarrinhoQuery({cdcarrinho})
 
-  return await client.$queryRaw`
-  ${query}
-  ;
-`;
+  return await knexClient.raw(query).then(res => res.rows);
 }
