@@ -85,6 +85,10 @@ async function baseRoutes(fastify, options) {
   await fastify.register(import("./pedidos.js"), {
     prefix: "/pedidos",
   });
+
+  await fastify.register(import("./logger.js"), {
+    prefix: "/logger",
+  });
 }
 
 export default baseRoutes;
