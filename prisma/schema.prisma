@@ -34,6 +34,7 @@ model flow_state {
   created_at             DateTime?             @db.Timestamptz(6)
   updated_at             DateTime?             @db.Timestamptz(6)
   authentication_method  String
+  auth_code_issued_at    DateTime?             @db.Timestamptz(6)
   saml_relay_states      saml_relay_states[]
 
   @@index([created_at(sort: Desc)])
@@ -148,6 +149,7 @@ model saml_providers {
   attribute_mapping Json?
   created_at        DateTime?     @db.Timestamptz(6)
   updated_at        DateTime?     @db.Timestamptz(6)
+  name_id_format    String?
   sso_providers     sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([sso_provider_id])
@@ -162,7 +164,6 @@ model saml_relay_states {
   request_id      String
   for_email       String?
   redirect_to     String?
-  from_ip_address String?       @db.Inet
   created_at      DateTime?     @db.Timestamptz(6)
   updated_at      DateTime?     @db.Timestamptz(6)
   flow_state_id   String?       @db.Uuid
@@ -273,6 +274,7 @@ model users {
   reauthentication_sent_at    DateTime?     @db.Timestamptz(6)
   is_sso_user                 Boolean       @default(false)
   deleted_at                  DateTime?     @db.Timestamptz(6)
+  is_anonymous                Boolean       @default(false)
   identities                  identities[]
   mfa_factors                 mfa_factors[]
   sessions                    sessions[]
@@ -281,6 +283,7 @@ model users {
   pacote                      pacote[]
 
   @@index([instance_id])
+  @@index([is_anonymous])
   @@schema("auth")
 }
 
@@ -315,16 +318,20 @@ model pacote_item {
 }
 
 model pedido {
-  cdpedido    String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  user_id     String             @db.Uuid
-  cdpagamento String?            @db.Uuid
-  created_at  DateTime           @default(now()) @db.Timestamp(6)
-  updated_at  DateTime?          @default(now()) @db.Timestamp(6)
-  status      pedido_status_enum @default(PENDING)
-  value       Decimal            @db.Decimal
-  cdcarrinho  String             @unique(map: "uq_cdcarrinho") @db.Uuid
-  pagamento   pagamento?         @relation(fields: [cdpagamento], references: [cdpagamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_pagamento")
-  carrinho    carrinho           @relation(fields: [cdcarrinho], references: [cdcarrinho], onDelete: NoAction, onUpdate: NoAction)
+  cdpedido              String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id               String             @db.Uuid
+  preference_id         String?            @db.VarChar
+  created_at            DateTime           @default(now()) @db.Timestamp(6)
+  updated_at            DateTime?          @default(now()) @db.Timestamp(6)
+  status                pedido_status_enum @default(PENDING)
+  value                 Decimal            @db.Decimal
+  cdcarrinho            String             @unique(map: "uq_cdcarrinho") @db.Uuid
+  cdendereco            String?            @db.Uuid
+  raw_payment_meta_data Json?
+  payment_url           String?            @db.VarChar
+  items                 Json?
+  carrinho              carrinho           @relation(fields: [cdcarrinho], references: [cdcarrinho], onDelete: NoAction, onUpdate: NoAction)
+  endereco              endereco?          @relation(fields: [cdendereco], references: [cdendereco], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -515,6 +522,7 @@ model endereco {
   nmuf          String?  @db.VarChar(2)
   flpadrao      String   @default("N") @db.VarChar(1)
   users         users    @relation(fields: [cdusuario], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  pedido        pedido[]
 
   @@schema("public")
 }
@@ -564,24 +572,24 @@ model pacote_item_foto {
   @@schema("public")
 }
 
-model pagamento {
-  cdpagamento String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  status      payment_status_enum @default(PENDING)
-  created_at  DateTime            @default(now()) @db.Timestamp(6)
-  updated_at  DateTime            @default(now()) @db.Timestamp(6)
-  paid_at     DateTime            @default(now()) @db.Timestamp(6)
-  payment_id  String?             @db.VarChar
-  pedido      pedido[]
-
-  @@schema("public")
-}
-
 model sub_produto_sub_tipo {
   cdsubprodutosubtipo String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   nmsubprodutosubtipo String?       @unique(map: "uq_sub_produto_sub_tipo") @db.VarChar(255)
   desubprodutosubtipo String?       @db.VarChar(255)
   sub_produto         sub_produto[]
 
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model action_logger {
+  id                    String  @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  action                String? @db.VarChar
+  content               String? @db.VarChar
+  request_ip            String? @db.VarChar
+  raw_payment_meta_data Json?
+
+  @@ignore
   @@schema("public")
 }
 
