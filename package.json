@@ -8,8 +8,7 @@
     "start:serverless": "node ./api/serverless.js",
     "db-update": "prisma db pull && prisma generate",
     "start": "node ./app/server.js",
-    "dev": "nodemon ./app/server.js",
-    "build": "vercel build"
+    "dev": "nodemon ./app/server.js"
   },
   "keywords": [],
   "author": "",

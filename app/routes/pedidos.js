@@ -66,6 +66,7 @@ export default async function (fastify, options) {
 
         const queryCarrinho = buscarCarrinhoQuery({
           cdcarrinho: body.cdcarrinho,
+          ignoreStatusCarrinho: true
         });
         const items_carrinho = await trx
           .raw(`${queryCarrinho}`)
@@ -113,7 +114,7 @@ export default async function (fastify, options) {
 
         let preference = await createPreference(items, body.cdcarrinho);
 
-        console.debug(`Pedido não existe, cadastrando informações...`);
+        console.debug(preference.init_point)
 
         await trx.raw(
           inserirPedidoQuery({
@@ -122,6 +123,8 @@ export default async function (fastify, options) {
             userId: user.id,
             preferenceId: preference.id,
             value: total_value,
+            payment_url: preference.init_point,
+            items: items
           })
         );
 

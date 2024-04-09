@@ -3,11 +3,13 @@ export function inserirPedidoQuery({
   cdendereco,
   preferenceId,
   value,
-  userId
+  userId,
+  payment_url,
+  items
 }) {
   const query = `
     INSERT INTO public.pedido
-      (user_id, preference_id, created_at, status, value, cdcarrinho, cdendereco)
+      (user_id, preference_id, created_at, status, value, cdcarrinho, cdendereco, payment_url, items)
     VALUES(
       '${userId}'::uuid, 
       '${preferenceId}', 
@@ -15,12 +17,15 @@ export function inserirPedidoQuery({
       'PENDING'::pedido_status_enum, 
       ${value}, 
       '${cdcarrinho}'::uuid,
-      '${cdendereco}'::uuid
+      '${cdendereco}'::uuid,
+      '${payment_url}',
+      '${JSON.stringify(items)}'
       )
     ON CONFLICT (cdcarrinho) DO UPDATE SET
       updated_at = EXCLUDED.created_at,
-      status = EXCLUDED.status,
-      cdendereco = EXCLUDED.cdendereco
+      cdendereco = EXCLUDED.cdendereco,
+      items = EXCLUDED.items,
+      payment_url = EXCLUDED.payment_url
     ;
   `;
 

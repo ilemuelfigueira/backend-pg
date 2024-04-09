@@ -1,10 +1,10 @@
-const storage_public = process.env.STORAGE_PUBLIC || 'url_nao_definida'
+const storage_public = process.env.STORAGE_PUBLIC || "url_nao_definida";
 
 export const buscarCarrinhoQuery = ({
-  cdcarrinho = 'cdcarrinho_nao_definido',
-  cdusuario = 'cdusuario_nao_definido'
+  cdcarrinho = "cdcarrinho_nao_definido",
+  cdusuario = "cdusuario_nao_definido",
+  ignoreStatusCarrinho = false,
 }) => {
-
   const query = `
     select distinct 
       p.cdpacote, 
@@ -34,7 +34,7 @@ export const buscarCarrinhoQuery = ({
       on pf.cdproduto = pi2.cdproduto 
     inner join carrinho cr
       on cr.cdcarrinho = cp.cdcarrinho
-      and cr.sgcarrinhosituacao = 'PEN'
+      ${ignoreStatusCarrinho ? "" : `and cr.sgcarrinhosituacao = 'PEN'`}
     left join pacote_foto pf2
       on pf2.cdpacote = p.cdpacote
     inner join produto pr
@@ -64,9 +64,9 @@ export const buscarCarrinhoQuery = ({
       pp.vlproduto, 
       cp.nuqtdpacote
     ;
-  `
+  `;
 
-  console.log(query)
+  console.log(query);
 
-  return query
-}
+  return query;
+};
