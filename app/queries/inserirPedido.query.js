@@ -4,7 +4,6 @@ export function inserirPedidoQuery({
   preferenceId,
   value,
   userId,
-  payment_url,
   items
 }) {
   const query = `
@@ -18,7 +17,7 @@ export function inserirPedidoQuery({
       ${value}, 
       '${cdcarrinho}'::uuid,
       '${cdendereco}'::uuid,
-      '${payment_url}',
+      :payment_url,
       '${JSON.stringify(items)}'
       )
     ON CONFLICT (cdcarrinho) DO UPDATE SET
