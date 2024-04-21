@@ -17,7 +17,7 @@ export const buscarCarrinhoQuery = ({
       cp.nuqtdpacote,
       p.nmpathname,
       CONCAT(pr.nmprodutotipo, ' - ', pr.nmproduto) as concat_nmproduto,
-      string_agg(CONCAT(spt.nmsubprodutotipo, ' - ', sp.nmsubproduto), ', ') as concat_nmsubprodutotipo,
+      string_agg(CONCAT(sp.nmsubprodutotipo, ' - ', sp.nmsubproduto), ', ') as concat_nmsubprodutotipo,
       string_agg(sp.nmsubproduto, ', ') as concat_nmsubproduto,
       CONCAT('${storage_public}', COALESCE(pf2.nmpath, pf.nmpath)) as nmpath,
       (SUM(COALESCE(spp.vlsubproduto, 0)) + COALESCE(pp.vlproduto, 0)) * cp.nuqtdpacote as vlpacote,
@@ -41,8 +41,6 @@ export const buscarCarrinhoQuery = ({
       on pr.cdproduto = pi2.cdproduto
     left join sub_produto sp
       on sp.cdsubproduto = pi2.cdsubproduto
-    left join sub_produto_tipo spt
-      on spt.cdsubprodutotipo = sp.cdsubprodutotipo
     left join produto_preco pp 
       on pp.cdproduto = pr.cdproduto
       and pp.flativo = 'S'

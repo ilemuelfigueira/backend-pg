@@ -371,15 +371,11 @@ async function produtosRoutes(fastify, options) {
       .raw(
         `
       select
-        sp.*,
-        spt.nmsubprodutotipo,
-        spt.desubprodutotipo
+        sp.*
       from sub_produto sp
       inner join sub_produto_preco spp
         on spp.cdsubproduto = sp.cdsubproduto
         and spp.flativo = 'S'
-      inner join sub_produto_tipo spt
-        on spt.cdsubprodutotipo = sp.cdsubprodutotipo
       where 1=1
         and sp.cdproduto = '${cdproduto}'
       order by sp.nmsubprodutotipo asc, spp.vlsubproduto asc, sp.nmsubproduto asc
