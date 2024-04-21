@@ -12,7 +12,7 @@ const knexClient = knex({
   client: "pg",
   connection: DATABASE_URL,
   searchPath: ["public", "auth"],
-  pool: { min: 0, max: 7 }
+  pool: { min: 0, max: 15 }
 }).on("connect", (e) => console.log("connected to db"));
 
 export { knexClient };
