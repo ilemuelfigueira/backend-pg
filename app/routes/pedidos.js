@@ -13,7 +13,9 @@ import { buscarPedidosUsuario } from "../queries/buscarPedido.query.js";
 const Knex = knex.Knex;
 
 const BACKEND_URL =
-  process.env.BACKEND_URL || "https://backend-pg-lemuelfigueira.vercel.app/api";
+  process.env.BACKEND_URL || "https://dev-api.pgcustomstore.com.br/api";
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "https://dev.pgcustomstore.com.br";
 
 /**
  *
@@ -164,7 +166,7 @@ export default async function (fastify, options) {
     }
   );
 
-  fastify.post("/feedback/:status", async (request, reply) => {
+  fastify.get("/feedback/:status", async (request, reply) => {
     const statusList = ["success", "failure", "pending"];
 
     const { status } = request.params;
@@ -214,7 +216,17 @@ export default async function (fastify, options) {
       return pedido;
     });
 
-    reply.send(result);
+    delete result.items;
+
+    result.raw_payment_meta_data = new URLSearchParams(
+      result.raw_payment_meta_data
+    ).toString();
+
+    const queryStringResponse = new URLSearchParams(result).toString();
+
+    reply.redirect(
+      `${FRONTEND_URL}/pedidos/feedback/${status}?${queryStringResponse}`
+    );
   });
 }
 
@@ -239,9 +251,9 @@ const feedbackQueryObject = yup.object().shape({
  */
 async function createPreference(items, cdcarrinho, payer) {
   const back_urls = {
-    success: `https://pgcustomstore.com.br/pedidos/feedback/success`,
-    failure: `https://pgcustomstore.com.br/pedidos/feedback/failure`,
-    pending: `https://pgcustomstore.com.br/pedidos/feedback/pending`,
+    success: `${BACKEND_URL}/pedidos/feedback/success`,
+    failure: `${BACKEND_URL}/pedidos/feedback/failure`,
+    pending: `${BACKEND_URL}/pedidos/feedback/pending`,
   };
 
   const before = await mpgPreference
