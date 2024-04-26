@@ -89,6 +89,10 @@ async function baseRoutes(fastify, options) {
   await fastify.register(import("./logger.js"), {
     prefix: "/logger",
   });
+
+  await fastify.register(import("./parceiros.js"), {
+    prefix: "/parceiros",
+  });
 }
 
 export default baseRoutes;
