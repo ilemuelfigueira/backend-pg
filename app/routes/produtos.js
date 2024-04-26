@@ -445,6 +445,9 @@ async function produtosRoutes(fastify, options) {
           cdproduto: cdproduto,
         },
       },
+      orderBy: {
+        nmpath: 'asc'
+      }
     });
 
     subProdutosFotos = subProdutosFotos.map((subprodutoFoto) =>
