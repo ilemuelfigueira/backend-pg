@@ -18,28 +18,6 @@ async function produtosRoutes(fastify, options) {
     const page = query.has("page") ? Number(query.get("page")) : 1;
     const skip = (page - 1) * take;
 
-    const whereMap = new Map();
-
-    if (query.has("nmproduto")) {
-      whereMap.set("nmproduto", {
-        contains: query.get("nmproduto"),
-        mode: "insensitive",
-      });
-    }
-
-    if (query.has("nmprodutotipo")) {
-      whereMap.set("nmprodutotipo", {
-        contains: query.get("nmprodutotipo"),
-        mode: "insensitive",
-      });
-    }
-
-    if (query.has("cdproduto")) {
-      whereMap.set("cdproduto", {
-        equals: query.get("cdproduto"),
-      });
-    }
-
     /**
      * @type {import(".prisma/client").Prisma.produtoFindManyArgs}
      */
@@ -48,11 +26,24 @@ async function produtosRoutes(fastify, options) {
       take,
     };
 
-    args.orderBy = query.has("orderBy")
-      ? `order by ${query.get("orderBy")} ${
-          query.get("orderDirection") || "asc"
-        }`
-      : "order by valorminimo asc";
+    if (query.has("order")) {
+      switch (query.get("order")) {
+        case "expensive": {
+          args.orderBy = `
+          order by 
+            valorminimo desc
+          `;
+          break;
+        }
+        case "cheaper": {
+          args.orderBy = `
+          order by 
+            valorminimo asc
+          `;
+          break;
+        }
+      }
+    }
 
     args.where = `
         and p.dtremovido is null
@@ -105,7 +96,7 @@ async function produtosRoutes(fastify, options) {
         on vmm.cdproduto = p.cdproduto
       where 1=1
         ${args.where}
-      ${args.orderBy}
+      ${args.orderBy || ""}
       limit ${args.take}
       offset ${args.skip}
       ;
@@ -446,8 +437,8 @@ async function produtosRoutes(fastify, options) {
         },
       },
       orderBy: {
-        nmpath: 'asc'
-      }
+        nmpath: "asc",
+      },
     });
 
     subProdutosFotos = subProdutosFotos.map((subprodutoFoto) =>
