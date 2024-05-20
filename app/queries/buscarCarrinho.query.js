@@ -64,7 +64,5 @@ export const buscarCarrinhoQuery = ({
     ;
   `;
 
-  console.log(query);
-
   return query;
 };
