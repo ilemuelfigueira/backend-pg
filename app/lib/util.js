@@ -5,3 +5,18 @@ export const mapToObject = (map) => {
   }
   return obj;
 }
+
+export async function validateSchema(schema, data) {
+  try {
+      await schema.validate(data, { abortEarly: false });
+      return {
+          valid: true,
+          errors: null
+      };
+  } catch (err) {
+      return {
+          valid: false,
+          errors: err.errors
+      };
+  }
+}

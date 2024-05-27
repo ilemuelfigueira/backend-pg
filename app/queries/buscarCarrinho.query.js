@@ -19,7 +19,7 @@ export const buscarCarrinhoQuery = ({
       CONCAT(pr.nmprodutotipo, ' - ', pr.nmproduto) as concat_nmproduto,
       string_agg(CONCAT(sp.nmsubprodutotipo, ' - ', sp.nmsubproduto), ', ') as concat_nmsubprodutotipo,
       string_agg(sp.nmsubproduto, ', ') as concat_nmsubproduto,
-      CONCAT('${storage_public}', COALESCE(pf2.nmpath, pf.nmpath)) as nmpath,
+      CONCAT('${storage_public}', COALESCE(pf2.nmpath, pf.nmpath, p.avatar)) as nmpath,
       (SUM(COALESCE(spp.vlsubproduto, 0)) + COALESCE(pp.vlproduto, 0)) * cp.nuqtdpacote as vlpacote,
       (SUM(COALESCE(spp.vlsubproduto, 0)) + COALESCE(pp.vlproduto, 0)) as vlpacoteunidade
     from carrinho_pacote cp
@@ -61,6 +61,8 @@ export const buscarCarrinhoQuery = ({
       pr.nmprodutotipo, 
       pp.vlproduto, 
       cp.nuqtdpacote
+    order by
+      pr.nmprodutotipo
     ;
   `;
 
