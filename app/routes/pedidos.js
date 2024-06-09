@@ -9,6 +9,8 @@ import { inserirPedidoQuery } from "../queries/inserirPedido.query.js";
 import * as yup from "yup";
 import { buscarPedidoPorPreferenceIdQuery } from "../queries/buscarPedidoPorPreferenceId.query.js";
 import { buscarPedidosUsuario } from "../queries/buscarPedido.query.js";
+import { UserRolesEnum } from "../enums/users.enum.js";
+import { TrackingStatusEnum } from "../enums/pedidos.enum.js";
 
 const Knex = knex.Knex;
 
@@ -16,6 +18,18 @@ const BACKEND_URL =
   process.env.BACKEND_URL || "https://dev-api.pgcustomstore.com.br/api";
 const FRONTEND_URL =
   process.env.FRONTEND_URL || "https://dev.pgcustomstore.com.br";
+
+const feedbackSchema = yup.object().shape({
+  tracking_status: yup
+    .string()
+    .oneOf(Object.values(TrackingStatusEnum))
+    .required(),
+  tracking_code: yup.string().when("tracking_status", {
+    is: (value) => value === TrackingStatusEnum.POSTADO,
+    then: (schema) => schema.required("Campo tracking_code é obrigatório"),
+    otherwise: (schema) => schema.nullable(),
+  }),
+});
 
 /**
  *
@@ -163,6 +177,102 @@ export default async function (fastify, options) {
       );
 
       reply.send(pedidos.rows);
+    }
+  );
+
+  fastify.get(
+    "/all",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { session } = request.headers;
+
+      if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+      const user = session.user;
+
+      const userRole = user?.user_metadata?.role || "cliente";
+
+      if (userRole !== UserRolesEnum.ADMIN)
+        return reply.status(403).send({
+          message: "Forbidden",
+        });
+
+      const pedidos = await knexClient.raw(
+        buscarPedidosUsuario({ cdusuario: user.id, role: userRole })
+      );
+
+      reply.send(pedidos.rows);
+    }
+  );
+
+  fastify.put(
+    "/:cdpedido/tracking-status",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { session } = request.headers;
+
+      const { cdpedido } = request.params;
+
+      const { tracking_status, tracking_code } = request.body;
+
+      // Verifica se o corpo da requisição é válido de acordo com o esquema
+      const isValid = await feedbackSchema.isValid({
+        tracking_status,
+        tracking_code,
+      });
+
+      if (!isValid) {
+        // Valida o corpo da requisição e captura os erros
+        const validationError = await feedbackSchema
+          .validate({ tracking_status, tracking_code })
+          .catch((err) => err.errors);
+
+        return reply.status(400).send({ message: validationError.join(", ") });
+      }
+
+      if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+      const user = session.user;
+
+      const userRole = user?.user_metadata?.role
+        ? user?.user_metadata?.role
+        : "cliente";
+
+      console.debug(userRole);
+
+      if (![UserRolesEnum.ADMIN].some((role) => userRole === role))
+        return reply.status(403).send({
+          message: "Forbidden",
+        });
+
+      await knexClient.raw(
+        `
+          update public.pedido set
+            tracking_status = '${tracking_status}'
+          where 1 = 1
+            and cdpedido = '${cdpedido}'
+        `
+      );
+
+      const result = await knexClient
+        .raw(
+          `
+          select 
+            p.cdpedido,
+            p.tracking_status,
+            p.tracking_code
+          from public.pedido p
+          where 1=1
+            and p.cdpedido = '${cdpedido}'
+        `
+        )
+        .then((res) => res.rows[0]);
+
+      reply.status(200).send(result);
     }
   );
 
