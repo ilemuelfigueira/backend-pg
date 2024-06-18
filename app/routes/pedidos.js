@@ -172,32 +172,7 @@ export default async function (fastify, options) {
 
       const user = session.user;
 
-      const pedidos = await knexClient.raw(
-        buscarPedidosUsuario({ cdusuario: user.id })
-      );
-
-      reply.send(pedidos.rows);
-    }
-  );
-
-  fastify.get(
-    "/all",
-    {
-      onRequest: [fastify.authenticate],
-    },
-    async (request, reply) => {
-      const { session } = request.headers;
-
-      if (!session) return reply.status(401).send({ message: "Unauthorized" });
-
-      const user = session.user;
-
       const userRole = user?.user_metadata?.role || "cliente";
-
-      if (userRole !== UserRolesEnum.ADMIN)
-        return reply.status(403).send({
-          message: "Forbidden",
-        });
 
       const pedidos = await knexClient.raw(
         buscarPedidosUsuario({ cdusuario: user.id, role: userRole })
@@ -208,7 +183,7 @@ export default async function (fastify, options) {
   );
 
   fastify.put(
-    "/:cdpedido/tracking-status",
+    "/admin/:cdpedido/tracking-status",
     {
       onRequest: [fastify.authenticate],
     },
