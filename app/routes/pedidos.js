@@ -10,7 +10,7 @@ import * as yup from "yup";
 import { buscarPedidoPorPreferenceIdQuery } from "../queries/buscarPedidoPorPreferenceId.query.js";
 import { buscarPedidosUsuario } from "../queries/buscarPedido.query.js";
 import { UserRolesEnum } from "../enums/users.enum.js";
-import { TrackingStatusEnum } from "../enums/pedidos.enum.js";
+import { ProductionStatusEnum, TrackingStatusEnum } from "../enums/pedidos.enum.js";
 
 const Knex = knex.Knex;
 
@@ -19,7 +19,7 @@ const BACKEND_URL =
 const FRONTEND_URL =
   process.env.FRONTEND_URL || "https://dev.pgcustomstore.com.br";
 
-const feedbackSchema = yup.object().shape({
+const trackingSchema = yup.object().shape({
   tracking_status: yup
     .string()
     .oneOf(Object.values(TrackingStatusEnum))
@@ -29,6 +29,13 @@ const feedbackSchema = yup.object().shape({
     then: (schema) => schema.required("Campo tracking_code é obrigatório"),
     otherwise: (schema) => schema.nullable(),
   }),
+});
+
+const productionSchema = yup.object().shape({
+  production_status: yup
+    .string()
+    .oneOf(Object.values(ProductionStatusEnum))
+    .required(),
 });
 
 /**
@@ -183,7 +190,7 @@ export default async function (fastify, options) {
   );
 
   fastify.put(
-    "/admin/:cdpedido/tracking-status",
+    "/:cdpedido/tracking-status",
     {
       onRequest: [fastify.authenticate],
     },
@@ -195,14 +202,14 @@ export default async function (fastify, options) {
       const { tracking_status, tracking_code } = request.body;
 
       // Verifica se o corpo da requisição é válido de acordo com o esquema
-      const isValid = await feedbackSchema.isValid({
+      const isValid = await trackingSchema.isValid({
         tracking_status,
         tracking_code,
       });
 
       if (!isValid) {
         // Valida o corpo da requisição e captura os erros
-        const validationError = await feedbackSchema
+        const validationError = await trackingSchema
           .validate({ tracking_status, tracking_code })
           .catch((err) => err.errors);
 
@@ -217,21 +224,99 @@ export default async function (fastify, options) {
         ? user?.user_metadata?.role
         : "cliente";
 
-      console.debug(userRole);
+      if (![UserRolesEnum.ADMIN].some((role) => userRole === role))
+        return reply.status(403).send({
+          message: "Forbidden",
+        });
+
+        await knexClient.transaction(async trx => {
+          await trx.raw(
+            `
+              update public.pedido set
+                tracking_status = '${tracking_status}',
+                tracking_code = '${tracking_code}'
+              where 1=1
+                and cdpedido = '${cdpedido}'
+            `
+          );
+
+          if([TrackingStatusEnum.ENTREGUE, TrackingStatusEnum.POSTADO, TrackingStatusEnum["PROBLEMA NA ENTREGA"]].some(status => status === tracking_status))
+           await trx.raw(
+            `
+              update public.pedido set
+                production_status = '${ProductionStatusEnum.FINALIZADO}'
+              where 1=1
+                and cdpedido = '${cdpedido}'
+            `)
+        })
+
+      const result = await knexClient
+        .raw(
+          `
+          select 
+            p.cdpedido,
+            p.tracking_status,
+            p.tracking_code
+          from public.pedido p
+          where 1=1
+            and p.cdpedido = '${cdpedido}'
+        `
+        )
+        .then((res) => res.rows[0]);
+
+      reply.status(200).send(result);
+    }
+  );
+
+  fastify.put(
+    "/:cdpedido/production-status",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { session } = request.headers;
+
+      const { cdpedido } = request.params;
+
+      const { production_status } = request.body;
+
+      // Verifica se o corpo da requisição é válido de acordo com o esquema
+      const isValid = await productionSchema.isValid({
+        production_status
+      });
+
+      if (!isValid) {
+        // Valida o corpo da requisição e captura os erros
+        const validationError = await productionSchema
+          .validate({ production_status })
+          .catch((err) => err.errors);
+
+        return reply.status(400).send({ message: validationError.join(", ") });
+      }
+
+      if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
+      const user = session.user;
+
+      const userRole = user?.user_metadata?.role
+        ? user?.user_metadata?.role
+        : "cliente";
 
       if (![UserRolesEnum.ADMIN].some((role) => userRole === role))
         return reply.status(403).send({
           message: "Forbidden",
         });
 
-      await knexClient.raw(
-        `
-          update public.pedido set
-            tracking_status = '${tracking_status}'
-          where 1 = 1
-            and cdpedido = '${cdpedido}'
-        `
-      );
+        await knexClient.transaction(async trx => {
+          await trx.raw(
+            `
+              update public.pedido set
+                production_status = '${production_status}'
+              where 1=1
+                and cdpedido = '${cdpedido}'
+            `
+          );
+        })
 
       const result = await knexClient
         .raw(
