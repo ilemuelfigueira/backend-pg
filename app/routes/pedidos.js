@@ -10,7 +10,10 @@ import * as yup from "yup";
 import { buscarPedidoPorPreferenceIdQuery } from "../queries/buscarPedidoPorPreferenceId.query.js";
 import { buscarPedidosUsuario } from "../queries/buscarPedido.query.js";
 import { UserRolesEnum } from "../enums/users.enum.js";
-import { ProductionStatusEnum, TrackingStatusEnum } from "../enums/pedidos.enum.js";
+import {
+  ProductionStatusEnum,
+  TrackingStatusEnum,
+} from "../enums/pedidos.enum.js";
 
 const Knex = knex.Knex;
 
@@ -174,6 +177,9 @@ export default async function (fastify, options) {
     },
     async (request, reply) => {
       const { session } = request.headers;
+      const { order = "asc", orderBy = "", search = "", page = 0, limit = 5 } = request.query;
+
+      console.debug(JSON.stringify(request.query));
 
       if (!session) return reply.status(401).send({ message: "Unauthorized" });
 
@@ -182,7 +188,15 @@ export default async function (fastify, options) {
       const userRole = user?.user_metadata?.role || "cliente";
 
       const pedidos = await knexClient.raw(
-        buscarPedidosUsuario({ cdusuario: user.id, role: userRole })
+        buscarPedidosUsuario({
+          cdusuario: user.id,
+          role: userRole,
+          order,
+          orderBy,
+          search,
+          page,
+          limit
+        })
       );
 
       reply.send(pedidos.rows);
@@ -229,26 +243,35 @@ export default async function (fastify, options) {
           message: "Forbidden",
         });
 
-        await knexClient.transaction(async trx => {
-          await trx.raw(
-            `
+      await knexClient.transaction(async (trx) => {
+        const _tracking_code =
+          tracking_status === TrackingStatusEnum.PENDENTE ? "" : tracking_code;
+        await trx.raw(
+          `
               update public.pedido set
                 tracking_status = '${tracking_status}',
-                tracking_code = '${tracking_code}'
+                tracking_code = '${_tracking_code}'
               where 1=1
                 and cdpedido = '${cdpedido}'
             `
-          );
+        );
 
-          if([TrackingStatusEnum.ENTREGUE, TrackingStatusEnum.POSTADO, TrackingStatusEnum["PROBLEMA NA ENTREGA"]].some(status => status === tracking_status))
-           await trx.raw(
+        if (
+          [
+            TrackingStatusEnum.ENTREGUE,
+            TrackingStatusEnum.POSTADO,
+            TrackingStatusEnum["PROBLEMA NA ENTREGA"],
+          ].some((status) => status === tracking_status)
+        )
+          await trx.raw(
             `
               update public.pedido set
                 production_status = '${ProductionStatusEnum.FINALIZADO}'
               where 1=1
                 and cdpedido = '${cdpedido}'
-            `)
-        })
+            `
+          );
+      });
 
       const result = await knexClient
         .raw(
@@ -282,7 +305,7 @@ export default async function (fastify, options) {
 
       // Verifica se o corpo da requisição é válido de acordo com o esquema
       const isValid = await productionSchema.isValid({
-        production_status
+        production_status,
       });
 
       if (!isValid) {
@@ -307,16 +330,22 @@ export default async function (fastify, options) {
           message: "Forbidden",
         });
 
-        await knexClient.transaction(async trx => {
-          await trx.raw(
-            `
+      await knexClient.transaction(async (trx) => {
+        const isPendente = production_status === ProductionStatusEnum.PENDENTE;
+        await trx.raw(
+          `
               update public.pedido set
                 production_status = '${production_status}'
+                ${
+                  isPendente
+                    ? `,tracking_status = '${TrackingStatusEnum.PENDENTE}', tracking_code = ''`
+                    : ""
+                }
               where 1=1
                 and cdpedido = '${cdpedido}'
             `
-          );
-        })
+        );
+      });
 
       const result = await knexClient
         .raw(

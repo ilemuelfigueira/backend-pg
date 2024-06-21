@@ -10,3 +10,9 @@ export const TrackingStatusEnum = {
   ENTREGUE: "ENTREGUE",
   "PROBLEMA NA ENTREGA": "PROBLEMA NA ENTREGA",
 };
+
+export const OrderByPedidos = {
+  PRODUCAO: 'producao',
+  RASTREIO: 'rastreio',
+  PAGAMENTO: 'pagamento'
+}
