@@ -3,45 +3,34 @@ import { UserRolesEnum } from "../enums/users.enum.js";
 export const buscarPedidosUsuario = ({
   cdusuario = undefined,
   role = "cliente",
-  order = 'asc',
-  orderBy = '',
-  search = '',
+  order = "asc",
+  orderBy = "",
+  search = "",
   page = 1,
-  limit = 5
+  limit = 5,
 }) => {
   if (!cdusuario) throw new Error("cdusuario required");
 
   const isAdmin = role === UserRolesEnum.ADMIN;
 
-  const query = isAdmin
-    ? queryAdmin({
-      order,
-      orderBy,
-      search,
-      page: page <= 0 ? 1 : page,
-      limit
-    })
-    : queryUser({
-        cdusuario,
-      });
-
-  return query;
+  return query({
+    order,
+    orderBy,
+    search,
+    page: page <= 0 ? 1 : page,
+    limit,
+    cdusuario,
+  });
 };
 
-const queryUser = ({ ...params }) => `
-    select 
-    p.*
-    from public.pedido p
-    where 1=1
-      and p.user_id = '${params?.cdusuario}'
-    order by 
-    p.status,
-    p.tracking_status,
-    p.production_status
-    ;
-`;
-
-const queryAdmin = ({ search = '', orderBy = "", order = 'asc', limit = 5, page = 1 }) => `
+const query = ({
+  search = "",
+  orderBy = "",
+  order = "asc",
+  limit = 5,
+  page = 1,
+  cdusuario,
+}) => `
     select 
       p.*,
       u.id,
@@ -50,7 +39,7 @@ const queryAdmin = ({ search = '', orderBy = "", order = 'asc', limit = 5, page 
       u.raw_user_meta_data->>'telefone' as telefone,
       count(*) over() as total
     from public.pedido p
-      inner join auth.users u
+    inner join auth.users u
       on u.id = p.user_id
     where 1=1
       and (
@@ -58,6 +47,7 @@ const queryAdmin = ({ search = '', orderBy = "", order = 'asc', limit = 5, page 
         or u.email ilike '%${search}%'
         or u.raw_user_meta_data->>'nome' ilike '%${search}%'
       )
+      ${cdusuario ? `and u.id = '${cdusuario}' ` : ""}
     order by 
       case 
         when 'producao-asc' = '${orderBy}-${order}' and p.production_status = 'PENDENTE' then 1
@@ -92,7 +82,7 @@ const queryAdmin = ({ search = '', orderBy = "", order = 'asc', limit = 5, page 
         when 'pagamento-desc' = '${orderBy}-${order}' and p.status = 'FAILED' then 1
       end,
       p.created_at desc
-      --limit ${limit ?? 5}
-      --offset ${(page - 1) * limit}
+      limit ${limit ?? 5}
+      offset ${(page - 1) * limit}
     ;
 `;
