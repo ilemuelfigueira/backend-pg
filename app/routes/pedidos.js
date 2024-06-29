@@ -70,35 +70,31 @@ export default async function (fastify, options) {
 
       const user = session.user;
 
-      const result = await knexClient.transaction(async (trx) => {
-        const carrinho = await trx
-          .raw(
-            `
+      const result = await knexClient
+        .transaction(async (trx) => {
+          const carrinho = await trx
+            .raw(
+              `
           select * from public.carrinho
           where 1=1
           and cdcarrinho = '${body.cdcarrinho}'
           and cdusuario = '${user.id}';
         `
-          )
-          .then((res) => res.rows[0]);
+            )
+            .then((res) => res.rows[0]);
 
-        if (!carrinho)
-          throw new Error("carrinho não existe ou não pertence ao usuário ");
+          if (!carrinho)
+            throw new Error("carrinho não existe ou não pertence ao usuário ");
 
-        // if (carrinho.sgcarrinhosituacao != "PEN")
-        //   throw new Error(
-        //     `carrinho não pode ser alterado status -> ${carrinho.sgcarrinhosituacao}`
-        //   );
+          const queryCarrinho = buscarCarrinhoQuery({
+            cdcarrinho: body.cdcarrinho,
+            ignoreStatusCarrinho: true,
+          });
+          const items_carrinho = await trx
+            .raw(`${queryCarrinho}`)
+            .then((res) => res.rows);
 
-        const queryCarrinho = buscarCarrinhoQuery({
-          cdcarrinho: body.cdcarrinho,
-          ignoreStatusCarrinho: true,
-        });
-        const items_carrinho = await trx
-          .raw(`${queryCarrinho}`)
-          .then((res) => res.rows);
-
-        await trx.raw(`
+          await trx.raw(`
         update public.carrinho set
           sgcarrinhosituacao = 'CNC'
         where 1=1
@@ -106,65 +102,66 @@ export default async function (fastify, options) {
           and cdusuario = '${user.id}'::uuid;
         `);
 
-        const items = items_carrinho.map((item) => ({
-          id: item.cdpacote,
-          quantity: Number(item.nuqtdpacote),
-          title: item.concat_nmproduto + item.concat_nmsubproduto,
-          unit_price: Number(item.vlpacoteunidade),
-          picture_url: item.nmpath,
-          category_id: item.nmprodutotipo,
-          description: item.concat_nmsubproduto,
-        }));
+          const items = items_carrinho.map((item) => ({
+            id: item.cdpacote,
+            quantity: Number(item.nuqtdpacote),
+            title: item.concat_nmproduto + item.concat_nmsubproduto,
+            unit_price: Number(item.vlpacoteunidade),
+            picture_url: item.nmpath,
+            category_id: item.nmprodutotipo,
+            description: item.concat_nmsubproduto,
+          }));
 
-        let total_value = 0;
-        items.forEach(
-          (item) => (total_value += Number(item.quantity * item.unit_price))
-        );
+          let total_value = 0;
+          items.forEach(
+            (item) => (total_value += Number(item.quantity * item.unit_price))
+          );
 
-        const usuarioForm = await trx
-          .raw(buscarUsuarioQuery({ cdusuario: user.id }))
-          .then((res) => res.rows[0]);
-
-        console.log(usuarioForm);
-
-        const endereco = await trx.raw(`
+          const endereco = await trx.raw(`
           select * from endereco e
           where e.cdusuario = '${user.id}'::uuid
           and e.cdendereco = '${body.cdendereco}'::uuid
         `);
 
-        if (!endereco)
-          throw new Error(
-            "endereço informado não existe ou não pertence ao usuário informado"
+          if (!endereco)
+            throw new Error(
+              "endereço informado não existe ou não pertence ao usuário informado"
+            );
+
+          let preference = await createPreference(items, body.cdcarrinho);
+
+          await trx.raw(
+            inserirPedidoQuery({
+              cdcarrinho: body.cdcarrinho,
+              cdendereco: body.cdendereco,
+              userId: user.id,
+              preferenceId: preference.id,
+              value: total_value,
+              items: items,
+            }),
+            {
+              payment_url: preference.init_point,
+            }
           );
 
-        let preference = await createPreference(items, body.cdcarrinho);
+          const pedido = await trx
+            .raw(
+              buscarPedidoPorCdCarrinhoQuery({ cdcarrinho: body.cdcarrinho })
+            )
+            .then((res) => res.rows[0]);
 
-        await trx.raw(
-          inserirPedidoQuery({
-            cdcarrinho: body.cdcarrinho,
-            cdendereco: body.cdendereco,
-            userId: user.id,
-            preferenceId: preference.id,
-            value: total_value,
-            items: items,
-          }),
-          {
-            payment_url: preference.init_point,
-          }
-        );
+          console.debug(`Pedido cadastrado com sucesso ${pedido.cdpedido}`);
 
-        const pedido = await trx
-          .raw(buscarPedidoPorCdCarrinhoQuery({ cdcarrinho: body.cdcarrinho }))
-          .then((res) => res.rows[0]);
-
-        console.debug(`Pedido cadastrado com sucesso ${pedido.cdpedido}`);
-
-        return {
-          pedido,
-          preference,
-        };
-      });
+          return {
+            pedido,
+            preference,
+          };
+        })
+        .catch((err) => {
+          return reply.status(500).send({
+            message: err.message,
+          });
+        });
 
       return reply.send(result);
     }
@@ -177,7 +174,13 @@ export default async function (fastify, options) {
     },
     async (request, reply) => {
       const { session } = request.headers;
-      const { order = "asc", orderBy = "", search = "", page = 0, limit = 5 } = request.query;
+      const {
+        order = "asc",
+        orderBy = "",
+        search = "",
+        page = 0,
+        limit = 5,
+      } = request.query;
 
       console.debug(JSON.stringify(request.query));
 
@@ -195,7 +198,7 @@ export default async function (fastify, options) {
           orderBy,
           search,
           page,
-          limit
+          limit,
         })
       );
 
@@ -387,7 +390,7 @@ export default async function (fastify, options) {
         case "success":
           return "PAID";
         case "failed":
-          return "FAILED";
+          return "PENDING";
         case "pending":
           return "PENDING";
         default:

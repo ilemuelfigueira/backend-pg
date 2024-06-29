@@ -1,14 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 
-export async function supabaseCreateClient(
+export async function supabaseCreateAuthClient(
   access_token,
   refresh_token,
   errorCallback
 ) {
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
-  );
+  const supabase = supabaseCreateClient()
 
   if (access_token && refresh_token) {
     await supabase.auth
@@ -22,6 +19,15 @@ export async function supabaseCreateClient(
         }
       });
   }
+
+  return supabase;
+}
+
+export function supabaseCreateClient() {
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+  );
 
   return supabase;
 }

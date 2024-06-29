@@ -1,4 +1,5 @@
-import { supabaseCreateClient } from "../lib/supabase.js";
+import fastifyMultipart from "@fastify/multipart";
+import { supabaseCreateAuthClient } from "../lib/supabase.js";
 
 import _fastify from "fastify";
 
@@ -29,7 +30,7 @@ async function baseRoutes(fastify, options) {
         const access_token = headers.access_token;
         const refresh_token = headers.refresh_token;
 
-        const supabase = await supabaseCreateClient(
+        const supabase = await supabaseCreateAuthClient(
           access_token,
           refresh_token,
           (error) => reply.status(401).send({ message: error })
@@ -49,6 +50,12 @@ async function baseRoutes(fastify, options) {
       }
     }
   );
+
+  fastify.register(fastifyMultipart, {
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB
+    }
+  })
 
   fastify.get("/", async (request, reply) => {
     return { message: "Bem vindo a api da pgcustomstore" };
@@ -92,6 +99,14 @@ async function baseRoutes(fastify, options) {
 
   await fastify.register(import("./parceiros.js"), {
     prefix: "/parceiros",
+  });
+
+  await fastify.register(import("./attachments.js"), {
+    prefix: "/attachments",
+  });
+
+  await fastify.register(import("./payments.js"), {
+    prefix: "/payments",
   });
 }
 

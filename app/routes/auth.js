@@ -1,4 +1,4 @@
-import { supabaseCreateClient } from "../lib/supabase.js";
+import { supabaseCreateAuthClient } from "../lib/supabase.js";
 
 /**
  * 
@@ -9,7 +9,7 @@ async function authRoutes(fastify, options) {
   fastify.post("/", async (request, reply) => {
     const { email, password } = request.body;
 
-    const supabase = await supabaseCreateClient();
+    const supabase = await supabaseCreateAuthClient();
 
     const {
       data: { session },

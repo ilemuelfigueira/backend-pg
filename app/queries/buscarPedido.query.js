@@ -19,7 +19,7 @@ export const buscarPedidosUsuario = ({
     search,
     page: page <= 0 ? 1 : page,
     limit,
-    cdusuario,
+    cdusuario: isAdmin ? undefined : cdusuario,
   });
 };
 
