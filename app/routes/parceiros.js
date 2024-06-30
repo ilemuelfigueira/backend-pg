@@ -50,6 +50,25 @@ export default async function (fastify, options) {
           message: "Parceiro não encontrado!",
         });
 
+      try {
+        const produtos = await knexClient.raw(
+          `
+              select 
+                p.* 
+              from public.produto p
+              where 1=1
+                and p.cdproduto in (${parceiro.lista_produtos?.map(id => `'${id}'::uuid`)?.join(",")})
+            `
+        ).then(res => res.rows.map(produto => ({
+          ...produto,
+          banners: produto.banners.map(banner => `${process.env.STORAGE_PUBLIC}${banner}`)
+        })))
+
+        parceiro.produtos = produtos
+      } catch (error) {
+        console.error(error.message);
+      }
+
       reply.send(parceiro);
     } catch (error) {
       reply.status(500).send({

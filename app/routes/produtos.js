@@ -47,6 +47,7 @@ async function produtosRoutes(fastify, options) {
 
     args.where = `
         and p.dtremovido is null
+        and p.nmprodutotipo <> 'CONTROLE_PARCEIRO'
       ${
         query.has("nmproduto")
           ? `and p.nmproduto ilike '%${query.get("nmproduto")}%'`
