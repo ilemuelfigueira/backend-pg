@@ -269,6 +269,66 @@ export default async function (fastify, options) {
     }
   );
 
+  fastify.delete(
+    "/:cdpacote",
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { session } = request.headers;
+      if (!session) return reply.status(401).send({ message: "Unauthorized" });
+      const user = session.user;
+
+      const { cdpacote } = request.params
+
+      try {
+        await knexClient.transaction(async (trx) => {
+          const pertenceUsuario = await trx
+            .raw(
+              `
+              select c.cdcarrinho from public.carrinho c
+              where c.cdusuario = '${user.id}'::uuid
+            `
+            )
+            .then((res) => res.rows[0]);
+
+          if (!pertenceUsuario)
+            throw new Error(`Pacote com id '${cdpacote}' é inválido.`);
+
+          await trx.raw(
+            `
+                delete from public.pacote_item
+                where 1=1
+                  and cdpacote = '${cdpacote}'::uuid
+              `
+          );
+
+          await trx.raw(
+            `
+                delete from public.carrinho_pacote
+                where 1=1
+                  and cdpacote = '${cdpacote}'::uuid
+              `
+          );
+
+          await trx.raw(
+            `
+              delete from public.pacote
+              where 1=1
+                and cdpacote = '${cdpacote}'::uuid
+            `
+          );
+        })
+
+        return reply.status(200).send();
+      } catch (error) {
+        console.error(`Erro removendo pacote com id '${cdpacote}'.`);
+        console.error(error.message);
+        return reply.status(500).send({ message: error.message });
+      }
+    }
+  );
+
   fastify.patch(
     "/:cdpacote/quantidade/:quantidade",
     {
@@ -276,6 +336,9 @@ export default async function (fastify, options) {
     },
     async (request, reply) => {
       const { session } = request.headers;
+
+      if (!session) return reply.status(401).send({ message: "Unauthorized" });
+
       const user = session.user;
 
       const { cdpacote, quantidade } = request.params;
@@ -321,7 +384,7 @@ export default async function (fastify, options) {
           );
         });
 
-        return reply.status(200).send()
+        return reply.status(200).send();
       } catch (error) {
         console.error(
           `Erro atualizando quantidade do pacote com id '${cdpacote}'.`
