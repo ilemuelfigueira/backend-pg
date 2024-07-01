@@ -243,6 +243,17 @@ export default async function (fastify, options) {
             )
             .then((res) => res.rows[0]);
 
+          if (subprodutos.length > 0) {
+            const algumSubProdutoInvalido = await trx.raw(`
+              select sp.cdproduto from public.sub_produto sp
+              where 1=1
+                and sp.cdsubproduto in (${subprodutos.map(id => `'${id}'`).join(',')})
+                and sp.cdproduto <> '${cdproduto}'::uuid
+            `).then(res => res?.rows?.length > 0);
+
+            if(algumSubProdutoInvalido) throw new Error('Subproduto não pertence ao produto informado.')
+          }
+
           for await (const subproduto of subprodutos) {
             await trx.raw(
               `
@@ -279,7 +290,7 @@ export default async function (fastify, options) {
       if (!session) return reply.status(401).send({ message: "Unauthorized" });
       const user = session.user;
 
-      const { cdpacote } = request.params
+      const { cdpacote } = request.params;
 
       try {
         await knexClient.transaction(async (trx) => {
@@ -318,7 +329,7 @@ export default async function (fastify, options) {
                 and cdpacote = '${cdpacote}'::uuid
             `
           );
-        })
+        });
 
         return reply.status(200).send();
       } catch (error) {

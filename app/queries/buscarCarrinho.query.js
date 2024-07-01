@@ -24,7 +24,7 @@ export const buscarCarrinhoQuery = ({
       (SUM(COALESCE(spp.vlsubproduto, 0)) + COALESCE(pp.vlproduto, 0)) * p.quantidade as vlpacote,
       (SUM(COALESCE(spp.vlsubproduto, 0)) + COALESCE(pp.vlproduto, 0)) as vlpacoteunidade
     from pacote p
-    inner join pacote_item pi2 
+    left join pacote_item pi2 
       on pi2.cdpacote = p.cdpacote 
     left join (
       select * from produto_foto pf
