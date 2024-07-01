@@ -126,17 +126,40 @@ export default async function (fastify, options) {
         console.debug({items})
 
         await knexClient.transaction(async (trx) => {
+          let carrinho = await trx
+          .raw(
+            `
+              select c.* from public.carrinho c
+              where 1=1
+                and c.cdusuario = '${session.user.id}'::uuid
+                and c.sgcarrinhosituacao = 'PEN'
+          `
+          )
+          .then((res) => res["rows"][0]);
+
+        if (!carrinho)
+          carrinho = await trx
+            .raw(
+              `
+              insert into public.carrinho (cdusuario)
+              select '${session.user.id}'::uuid
+              returning cdcarrinho
+        `
+            )
+            .then((res) => res["rows"][0]);
+
           const _pacote = await trx
             .raw(
               `
             insert into public.pacote (
-              cdusuario, nmpacote, nmpathname, avatar
+              cdusuario, nmpacote, nmpathname, avatar, cdcarrinho
             )
             select 
               '${pacote.cdusuario}'::uuid,
               '${pacote.nmpacote}',
               '${pacote.nmpathname}',
-              '${pacote.avatar}'
+              '${pacote.avatar}',
+              '${carrinho}',
             returning cdpacote;
           `
             )
@@ -170,28 +193,6 @@ export default async function (fastify, options) {
                 ${pacote.avatar},
                 null
             `);
-
-          let carrinho = await trx
-            .raw(
-              `
-                select c.* from public.carrinho c
-                where 1=1
-                  and c.cdusuario = '${session.user.id}'::uuid
-                  and c.sgcarrinhosituacao = 'PEN'
-            `
-            )
-            .then((res) => res["rows"][0]);
-
-          if (!carrinho)
-            carrinho = await trx
-              .raw(
-                `
-                insert into public.carrinho (cdusuario)
-                select '${session.user.id}'::uuid
-                returning cdcarrinho
-          `
-              )
-              .then((res) => res["rows"][0]);
 
           await trx.raw(`
                 insert into public.carrinho_pacote (cdcarrinho, cdpacote, nuqtdpacote)
